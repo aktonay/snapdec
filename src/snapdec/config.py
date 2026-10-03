@@ -60,9 +60,11 @@ def installed_manifest_path() -> Path:
 @dataclass
 class Config:
     backend: str = "tier0"  # tier0 | mock | remote
-    backend_label: str = ""
+    backend_label: str = ""  # hosted | local-server | local-managed | ""
     remote_url: str = ""
     model: str = ""
+    laya_model: str = ""    # english | multilingual (managed local backend)
+    managed: str = ""       # laya | kev (managed local backend kind)
     api_key_env: str = ""  # name of env var holding the key; no secret stored
     api_key_stored: bool = False  # True → a key exists in state/keys (0600)
     profile: str = ""

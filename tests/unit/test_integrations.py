@@ -22,7 +22,7 @@ def no_cli(monkeypatch: pytest.MonkeyPatch):
 def test_cursor_apply_verify_remove_cycle(tmp_home: Path, no_cli):
     integ = CursorIntegrator()
     assert not integ.detect().installed
-    r = integ.apply("C:/snapdec/snapdec.exe")
+    r = integ.apply(["C:/snapdec/snapdec.exe"])
     assert r.ok
     cfg = tmp_home / ".cursor" / "mcp.json"
     assert cfg.exists()
@@ -43,7 +43,7 @@ def test_cursor_unknown_keys_preserved(tmp_home: Path, no_cli):
     cfg = tmp_home / ".cursor" / "mcp.json"
     cfg.parent.mkdir(parents=True)
     cfg.write_text('{"mcpServers": {"mine": {"command": "x"}}, "editor.fontSize": 12}')
-    integ.apply("snapdec")
+    integ.apply(["snapdec"])
     import json
 
     data = json.loads(cfg.read_text())
@@ -53,7 +53,7 @@ def test_cursor_unknown_keys_preserved(tmp_home: Path, no_cli):
 
 def test_opencode_uses_array_command(tmp_home: Path, no_cli):
     integ = OpenCodeIntegrator()
-    r = integ.apply("/usr/local/bin/snapdec")
+    r = integ.apply(["/usr/local/bin/snapdec"])
     assert r.ok
     import json
 
@@ -66,7 +66,7 @@ def test_opencode_uses_array_command(tmp_home: Path, no_cli):
 
 def test_claude_code_file_fallback(tmp_home: Path, no_cli):
     integ = ClaudeCodeIntegrator()
-    r = integ.apply("snapdec")
+    r = integ.apply(["snapdec"])
     assert r.ok and not r.manual_snippet
     import json
 

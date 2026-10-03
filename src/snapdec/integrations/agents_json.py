@@ -60,8 +60,8 @@ class OpenCodeIntegrator(JsonFamilyIntegrator):
         self.config_path = cfg
         self.skills_dir = base / "skills" / NAME
 
-    def _entry(self, exe: str) -> dict:
-        return {"type": "local", "command": [exe, "mcp"], "enabled": True}
+    def _entry(self, cmd: list[str]) -> dict:
+        return {"type": "local", "command": cmd + ["mcp"], "enabled": True}
 
 
 class VsCodeIntegrator(JsonFamilyIntegrator):
@@ -117,8 +117,8 @@ class ClineIntegrator(JsonFamilyIntegrator):
                 return d
         return cls._host_dirs()[0]
 
-    def _entry(self, exe: str) -> dict:
-        e = super()._entry(exe)
+    def _entry(self, cmd: list[str]) -> dict:
+        e = super()._entry(cmd)
         e["disabled"] = False
         return e
 
@@ -134,12 +134,12 @@ class GenericSkillIntegrator:
 
         return Detection(True, "universal fallback")
 
-    def plan(self, exe: str) -> list:
+    def plan(self, cmd: list[str]) -> list:
         from .base import Action
 
         return [Action("COPY_SKILL", str(Path.home() / ".agents" / "skills" / NAME))]
 
-    def apply(self, exe: str, dry_run: bool = False) -> object:
+    def apply(self, cmd: list[str], dry_run: bool = False) -> object:
         from .base import InstallManifest, Result, install_skill
 
         if dry_run:

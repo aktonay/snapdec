@@ -162,7 +162,30 @@ def run_daemon(port: int | None = None) -> int:
 
         srv = UDSHTTPServer(None, Handler)  # type: ignore[arg-type]
     else:
-        srv = ThreadingHTTPServer(("127.0.0.1", use_port or 0), Handler)
+        # allow concurrent dev instances: fall forward to a free port
+        srv = None
+        for cand in [use_port or ipc.DEFAULT_PORT] + \
+                [(ipc.DEFAULT_PORT + i) for i in range(1, 11)]:
+            if cand != (use_port or ipc.DEFAULT_PORT) and not ipc.check_port_free(cand):
+                continue
+            try:
+                srv = ThreadingHTTPServer(("127.0.0.1", cand), Handler)
+                use_port = cand
+                break
+            except OSError:
+                continue
+        if srv is None:
+            print("no free loopback port for daemon", file=sys.stderr)
+            ipc.clear_state()
+            lock.release()
+            return 1
+        if use_port != (port or ipc.DEFAULT_PORT):
+            st = ipc.read_state() or {}
+            st["port"] = use_port
+            import json as _json
+
+            _p = ipc._state_file()
+            _p.write_text(_json.dumps(st), encoding="utf-8")
 
     try:
         srv.serve_forever()

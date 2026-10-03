@@ -29,11 +29,20 @@ class Question(BaseModel):
 class Answer(BaseModel):
     type: QuestionType
     choice: str | None = None
-    noul: bool | None = None
+    noul: bool | float | None = None  # servers send P(yes) as float; bool also OK
     score: float | None = None
     probabilities: dict[str, float] | None = None
     confidence: float | None = None
     nearest_level: str | None = None
+
+    @property
+    def p_yes(self) -> float | None:
+        """Normalized P(yes) for noul answers regardless of wire encoding."""
+        if self.noul is None:
+            return None
+        if isinstance(self.noul, bool):
+            return 1.0 if self.noul else 0.0
+        return float(self.noul)
 
 
 class SystemOneRequest(BaseModel):

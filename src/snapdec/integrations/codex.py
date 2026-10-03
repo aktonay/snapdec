@@ -40,14 +40,14 @@ class CodexIntegrator:
             ev.append(str(cfg))
         return Detection(installed, "; ".join(ev), config_paths=[str(cfg)])
 
-    def plan(self, exe: str) -> list[Action]:
+    def plan(self, cmd: list[str]) -> list[Action]:
         if self._cli():
-            return [Action("CLI", f"codex mcp add {NAME} -- {exe} mcp"),
+            return [Action("CLI", f"codex mcp add {NAME} -- {' '.join(cmd)} mcp"),
                     Action("COPY_SKILL", str(self.skills_dir()))]
         return [Action("TOML_MERGE", f"[mcp_servers.{NAME}] → {self.config_file()}"),
                 Action("COPY_SKILL", str(self.skills_dir()))]
 
-    def apply(self, exe: str, dry_run: bool = False) -> Result:
+    def apply(self, cmd: list[str], dry_run: bool = False) -> Result:
         manifest = InstallManifest()
         actions: list[Action] = []
         snippets: list[str] = []
@@ -55,7 +55,7 @@ class CodexIntegrator:
         if not dry_run:
             if cli:
                 try:
-                    r = subprocess.run([cli, "mcp", "add", NAME, "--", exe, "mcp"],
+                    r = subprocess.run([cli, "mcp", "add", NAME, "--", *cmd, "mcp"],
                                        capture_output=True, text=True, timeout=30)
                     if r.returncode == 0:
                         actions.append(Action("CLI", f"codex mcp add {NAME}"))
@@ -66,7 +66,8 @@ class CodexIntegrator:
                     snippets.append(f"codex CLI error: {e}")
             if not cli or snippets:
                 out = toml_merge(self.config_file(), f"mcp_servers.{NAME}",
-                                 {"command": exe, "args": ["mcp"]}, manifest=manifest)
+                                 {"command": cmd[0], "args": cmd[1:] + ["mcp"]},
+                                 manifest=manifest)
                 actions.extend(out.actions)
                 if out.snippet:
                     snippets.append(out.snippet)

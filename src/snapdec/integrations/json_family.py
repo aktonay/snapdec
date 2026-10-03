@@ -16,6 +16,29 @@ from .base import Action, Detection, InstallManifest, Result, install_skill, mcp
 from .patchers import jsonc_merge
 
 
+def _read_config_tolerant(path: Path) -> dict | None:
+    """Verify-time parse only (read-only): tolerate comments/trailing commas.
+    Writing still refuses commented files (§8.2 rule 4)."""
+    import json
+    import re
+
+    try:
+        text = path.read_text(encoding="utf-8-sig")
+    except OSError:
+        return None
+    try:
+        return json.loads(text)
+    except json.JSONDecodeError:
+        pass
+    stripped = re.sub(r"^\s*(//|#).*?$", "", text, flags=re.M)
+    stripped = re.sub(r",(\s*[}\]])", r"\1", stripped)
+    try:
+        data = json.loads(stripped)
+        return data if isinstance(data, dict) else None
+    except json.JSONDecodeError:
+        return None
+
+
 class JsonFamilyIntegrator:
     id = "generic-json"
     display_name = "Generic JSON agent"
@@ -25,8 +48,8 @@ class JsonFamilyIntegrator:
     needs_restart = True
     detect_cli: str | None = None         # binary whose presence = installed
 
-    def _entry(self, exe: str) -> dict:
-        e = mcp_entry(exe)
+    def _entry(self, cmd: list[str]) -> dict:
+        e = mcp_entry(cmd)
         e.pop("type", None)
         return e
 
@@ -42,14 +65,14 @@ class JsonFamilyIntegrator:
         return Detection(installed, "; ".join(evidence),
                          config_paths=[str(self.config_path)] if self.config_path else [])
 
-    def plan(self, exe: str) -> list[Action]:
+    def plan(self, cmd: list[str]) -> list[Action]:
         actions = [Action("JSON_MERGE", f"{self.top_key}.{NAME} → {self.config_path}",
                           target=str(self.config_path))]
         if self.skills_dir:
             actions.append(Action("COPY_SKILL", str(self.skills_dir)))
         return actions
 
-    def apply(self, exe: str, dry_run: bool = False) -> Result:
+    def apply(self, cmd: list[str], dry_run: bool = False) -> Result:
         manifest = InstallManifest()
         actions: list[Action] = []
         snippets: list[str] = []
@@ -57,7 +80,7 @@ class JsonFamilyIntegrator:
             return Result(False, "no config path")
         if not dry_run:
             out = jsonc_merge(self.config_path,
-                              {self.top_key: {NAME: self._entry(exe)}},
+                              {self.top_key: {NAME: self._entry(cmd)}},
                               manifest=manifest)
             actions.extend(out.actions)
             if out.snippet:
@@ -75,11 +98,8 @@ class JsonFamilyIntegrator:
     def verify(self) -> list[tuple[bool, str]]:
         if not self.config_path or not self.config_path.exists():
             return [(False, f"{self.display_name}: config missing")]
-        import json
-
-        try:
-            data = json.loads(self.config_path.read_text(encoding="utf-8-sig"))
-        except (OSError, json.JSONDecodeError):
+        data = _read_config_tolerant(self.config_path)
+        if data is None:
             return [(False, f"{self.display_name}: config unreadable")]
         ok = NAME in (data.get(self.top_key) or {})
         return [(ok, f"{self.display_name}: {'registered' if ok else 'not registered'}")]

@@ -122,30 +122,116 @@ def _auto_local(cfg: config.Config) -> None:
               f"model: [bold]{f.model or '(default)'}[/bold]")
 
 
-def _auto_backend(opts: dict[str, Any], api_key: str | None = None) -> config.Config:
-    """The auto wizard (§9.1): ONE prompt, everything else decided."""
-    prof = select_profile(hw_detect())
+def _select_backend(opts: dict[str, Any], api_key: str | None = None) -> config.Config:
+    """The wizard (§9.1): PC spec → catalog with honest stats, hardware-gated
+    (only what this machine can run) → user chooses freely → local = auto
+    download + auto-setup; hosted = paste key, rest automatic."""
+    from ..hardware.catalog import HOSTED_STATS, catalog_for
+    from ..runtime.provision import setup_size_note
+
+    rep = hw_detect()
+    prof = select_profile(rep)
     cfg = config.Config(profile=prof.id)
 
-    out.print("\n[bold]Decision backend[/bold] — paste a key for hosted, "
-              "or press Enter for free & local.\n")
-    key = api_key
-    if key is None and not opts.get("yes"):
-        key = typer.prompt("API key (Enter = free & local)", hide_input=True,
-                           default="", show_default=False).strip() or None
-    if key:
-        if not _apply_key(cfg, key):
-            # retry once, then fall back to local probe
-            key2 = typer.prompt("API key (Enter = free & local)", hide_input=True,
-                                default="", show_default=False).strip() or None \
-                if not opts.get("yes") else None
-            if not key2 or not _apply_key(cfg, key2):
-                _auto_local(cfg)
+    models = catalog_for(rep)
+    mapping = {
+        "laya-en": ("laya", "english"),
+        "laya-multilingual": ("laya", "multilingual"),
+        "kev-0.8b": ("kev", "jaredpalmer/kev-0.8b"),
+        "kev-4b": ("kev", "jaredpalmer/kev-4b"),
+    }
+
+    out.print("\n[bold]Recommended for this machine[/bold] "
+              f"({rep.oneline()})\n")
+    out.print("  LOCAL — free · private · offline")
+    n = 1
+    numbers: dict[int, tuple[str, str]] = {}
+    for m in models:
+        star = "   [bold](recommended)[/bold]" if prof.id in m.recommended_for else ""
+        slow = "   [yellow]slow on CPU[/yellow]" if m.slow_on_cpu and \
+            not any(g.vendor == "nvidia" for g in rep.gpus) else ""
+        out.print(f"    [{n}] {m.label} ({m.params})  —  {m.di}")
+        out.print(f"        {m.latency} · setup: {m.setup}{star}{slow}")
+        numbers[n] = (m.key, m.label)
+        n += 1
+    out.print("  HOSTED — API key · best accuracy")
+    for label, stats in HOSTED_STATS:
+        out.print(f"    [{n}] {label}  —  {stats}")
+        numbers[n] = (f"hosted:{label}", label)
+        n += 1
+    out.print(f"    [{n}] Other /v1/systemone URL")
+    numbers[n] = ("hosted:custom", "custom")
+    out.print()
+
+    rec_keys = {mm.key for mm in models if prof.id in mm.recommended_for}
+    default = next((str(i) for i, (k, _) in numbers.items() if k in rec_keys), "1")
+    choice = typer.prompt("Choice", default=default).strip()
+    try:
+        key_sel, label = numbers[int(choice)]
+    except (KeyError, ValueError):
+        cfg.backend = "tier0"
+        return cfg
+
+    if key_sel in mapping:
+        kind, model = mapping[key_sel]
+        ok = True if opts.get("yes") else typer.confirm(
+            f"    Local setup downloads {setup_size_note(kind)} once. Continue?",
+            default=True)
+        if not ok:
+            cfg.backend = "tier0"
+            out.print("  skipped — Tier-0 configured")
+            return cfg
+        if not opts.get("dry_run"):
+            from ..runtime import provision
+
+            ok, detail = provision.provision(
+                kind, model, consent=True,
+                on_step=lambda m: out.print(f"  [blue]…[/blue] {m}"))
+            if not ok:
+                out.print(f"  [red]local setup failed:[/red] {detail}")
+                out.print("  falling back to Tier-0; fix the issue and re-run init")
+                cfg.backend = "tier0"
+                return cfg
+            out.print(f"  [green]local ready[/green]: {detail}")
+        from ..runtime.provision import KEV_PORT, LAYA_PORT
+
+        port = LAYA_PORT if kind == "laya" else KEV_PORT
+        cfg.backend, cfg.backend_label = "remote", "local-managed"
+        cfg.remote_url = f"http://127.0.0.1:{port}"
+        cfg.model, cfg.managed = model, kind
+    elif key_sel.startswith("hosted:"):
+        if key_sel == "hosted:custom":
+            cfg.backend, cfg.backend_label = "remote", "hosted"
+            cfg.remote_url = typer.prompt("  Base URL").strip()
+            k = api_key or (typer.prompt("  API key (optional)", hide_input=True,
+                                         default="", show_default=False).strip()
+                            if not opts.get("yes") else "")
+            if k:
+                config.store_api_key(k)
+                cfg.api_key_stored = True
+            return cfg
+        fake = "sk-or-x" if "OpenRouter" in label else "ts-x"
+        from ..backends.keydetect import detect_provider as _dp
+        from ..backends.keydetect import pick_model
+
+        guess = _dp(fake)
+        key = api_key
+        if key is None and not opts.get("yes"):
+            key = typer.prompt("  Paste API key", hide_input=True,
+                               default="", show_default=False).strip() or None
+        if not key:
+            out.print("  [red]no key given[/red] — Tier-0 configured; re-run init "
+                      "with a key")
+            cfg.backend = "tier0"
+            return cfg
+        config.store_api_key(key)
+        cfg.api_key_stored = True
+        cfg.backend, cfg.backend_label = "remote", "hosted"
+        cfg.remote_url = guess.url
+        cfg.model = pick_model(guess)
+        out.print(f"  [green]auto[/green]: {guess.note}")
     else:
-        if opts.get("yes"):
-            _auto_local(cfg)  # non-interactive: probe, else tier0
-        else:
-            _auto_local(cfg)
+        cfg.backend = "tier0"
     return cfg
 
 
@@ -218,7 +304,7 @@ def init(
 
     cfg = config.Config.load()
     if backend == "auto" or (backend is None and (api_key or not yes)):
-        cfg = _auto_backend({"yes": yes}, api_key=api_key)
+        cfg = _select_backend({"yes": yes}, api_key=api_key)
     elif backend:
         cfg.profile = select_profile(hw_detect()).id
         if backend.startswith("hosted:"):
@@ -229,9 +315,26 @@ def init(
             else:
                 cfg.remote_url, cfg.backend, cfg.backend_label = preset, "remote", "hosted"
         elif backend == "local":
-            cfg.backend, cfg.backend_label = "remote", "local-server"
-            cfg.remote_url = remote_url or "http://127.0.0.1:8009"
-            cfg.model = model or "kev-latest"
+            # non-interactive managed local setup (explicit flag = consent)
+            from ..runtime import provision
+            from ..runtime.provision import KEV_PORT, LAYA_PORT
+
+            kind = "kev" if model and "kev" in model else "laya"
+            m = model or "english"
+            if kind == "kev" and "/" not in m:
+                m = f"jaredpalmer/{m}"
+            port = LAYA_PORT if kind == "laya" else KEV_PORT
+            if not dry_run:
+                ok, detail = provision.provision(
+                    kind, m, consent=True,
+                    on_step=lambda msg: out.print(f"  [blue]…[/blue] {msg}"))
+                if not ok:
+                    err.print(f"[red]local setup failed:[/red] {detail}")
+                    raise typer.Exit(1)
+                out.print(f"  [green]local ready[/green]: {detail}")
+            cfg.backend, cfg.backend_label = "remote", "local-managed"
+            cfg.remote_url = f"http://127.0.0.1:{port}"
+            cfg.model, cfg.managed, cfg.laya_model = m, kind, m
         else:
             cfg.backend = backend  # tier0 | mock
         if remote_url:
@@ -242,7 +345,7 @@ def init(
             cfg.api_key_env = api_key_env
     else:
         # non-interactive with no backend: probe local, else tier0
-        cfg = _auto_backend({"yes": True})
+        cfg = _select_backend({"yes": True})
 
     # ---- agents
     wanted = agents.split(",") if agents and agents != "all" else None
@@ -258,13 +361,16 @@ def init(
     t.add_column("status")
     t.add_column("detail")
     results = []
+    from ..integrations.base import snapdec_cmd
+
+    cmd = snapdec_cmd()
     for _, integ, _d in chosen:
         if dry_run:
-            acts = integ.plan("snapdec")
+            acts = integ.plan(cmd)
             t.add_row(integ.display_name, "[blue]planned[/blue]",
                       "; ".join(a.detail for a in acts))
             continue
-        r = integ.apply("snapdec")
+        r = integ.apply(cmd)
         results.append((integ, r))
         status = "[green]ok[/green]" if r.ok and not r.manual_snippet else \
             "[yellow]partial[/yellow]"
@@ -424,7 +530,9 @@ def add(agent_id: str) -> None:
     if not integ:
         err.print(f"unknown agent: {agent_id} (see `snapdec agents list`)")
         raise typer.Exit(2)
-    r = integ.apply("snapdec")
+    from ..integrations.base import snapdec_cmd
+
+    r = integ.apply(snapdec_cmd())
     out.print(f"{'[ok]' if r.ok else '[FAIL]'} {r.detail}")
     if r.manual_snippet:
         err.print(r.manual_snippet)
@@ -452,12 +560,13 @@ def print_snippet(agent_id: str) -> None:
     integ = ALL_INTEGRATORS.get(agent_id)
     if not integ:
         raise typer.Exit(2)
-    import shutil
 
-    exe = shutil.which("snapdec") or "snapdec"
-    for a in integ.plan(exe):
+    from ..integrations.base import mcp_entry, snapdec_cmd
+
+    cmd = snapdec_cmd()
+    for a in integ.plan(cmd):
         out.print(f"- {a.detail}")
-    entry = {"type": "stdio", "command": exe, "args": ["mcp"], "env": {}}
+    entry = mcp_entry(cmd)
     out.print_json(json.dumps({integ.id: entry}))
 
 
@@ -480,7 +589,10 @@ def _tier1_cli(payload: dict[str, Any]) -> dict[str, Any]:
         for name, a in (raw.get("answers") or {}).items():
             row = {"id": name}
             if a.get("type") == "noul":
-                row["verdict"] = "yes" if a.get("noul") else "no"
+                p = a.get("noul")
+                p_yes = (1.0 if p else 0.0) if isinstance(p, bool) else float(p or 0.0)
+                row["verdict"] = "yes" if p_yes > 0.5 else "no"
+                row["p_yes"] = round(p_yes, 4)
             elif a.get("type") == "choice":
                 row["label"] = a.get("choice")
             else:
@@ -498,16 +610,35 @@ def _load_input(input_path: str | None) -> dict[str, Any]:
     return json.loads(sys.stdin.read())
 
 
+def _tier1_cli_many(payloads: list[dict[str, Any]]) -> dict[str, Any]:
+    """Fan-out (§4.6): per-item states, parallel; mirrors the MCP shim."""
+    import concurrent.futures as cf
+
+    t0 = time.perf_counter()
+    with cf.ThreadPoolExecutor(max_workers=min(8, len(payloads) or 1)) as ex:
+        envs = list(ex.map(_tier1_cli, payloads))
+    results = [r for env in envs for r in env.get("results", [])]
+    if not results and envs:
+        return envs[0]
+    return make_envelope(results, backend={"name": "daemon",
+                                           "latency_ms": round(
+                                               (time.perf_counter()-t0)*1000, 1)})
+
+
 @app.command()
 def classify(input: str | None = typer.Option(None, "--input")) -> None:
     """Input: {"items":[{id,text}],"classes":{label:desc}}"""
     d = _load_input(input)
-    qs = {it.get("id", f"i{n}"): {"type": "choice",
-                                  "instructions": d.get("instructions", ""),
-                                  "criteria": d["classes"]}
-          for n, it in enumerate(d.get("items", []))}
-    state = "\n".join(str(i.get("text", "")) for i in d.get("items", []))
-    out.print_json(json.dumps(_tier1_cli({"state": state, "questions": qs})))
+    instr = d.get("instructions", "") or \
+        "Pick the single best-fitting class for the text."
+    payloads = [{"state": str(it.get("text", "")),
+                 "questions": {"item": {"type": "choice", "instructions": instr,
+                                        "criteria": d["classes"]}}}
+                for it in d.get("items", [])]
+    env = _tier1_cli_many(payloads)
+    for it, r in zip(d.get("items", []), env.get("results", []), strict=False):
+        r["id"] = it.get("id", r.get("id"))
+    out.print_json(json.dumps(env))
 
 
 @app.command()
@@ -528,10 +659,16 @@ def check(evidence: str | None = typer.Option(None),
 def score(input: str | None = typer.Option(None, "--input")) -> None:
     """Input: {"items":[{id,text}],"levels":[...]}"""
     d = _load_input(input)
-    qs = {it.get("id", f"i{n}"): {"type": "score", "criteria": d["levels"]}
-          for n, it in enumerate(d.get("items", []))}
-    state = "\n".join(str(i.get("text", "")) for i in d.get("items", []))
-    out.print_json(json.dumps(_tier1_cli({"state": state, "questions": qs})))
+    payloads = [{"state": str(it.get("text", "")),
+                 "questions": {"item": {"type": "score",
+                                        "instructions":
+                                            "Rate the item on the given scale.",
+                                        "criteria": d["levels"]}}}
+                for it in d.get("items", [])]
+    env = _tier1_cli_many(payloads)
+    for it, r in zip(d.get("items", []), env.get("results", []), strict=False):
+        r["id"] = it.get("id", r.get("id"))
+    out.print_json(json.dumps(env))
 
 
 @app.command()
@@ -541,14 +678,17 @@ def rank(query: str | None = None, input: str | None = None,
     d = _load_input(input) if input else {"query": query or "", "candidates": []}
     if query and input:
         d["query"] = query
-    qs = {c.get("id", f"c{n}"): {"type": "noul",
-                                 "instructions": f"Relevant to: {d.get('query','')}"}
-          for n, c in enumerate(d.get("candidates", []))}
-    state = (d.get("query", "") + "\n" +
-             "\n".join(f"[{c.get('id','')}] {c.get('text','')}"
-                       for c in d.get("candidates", [])))
-    env = _tier1_cli({"state": state, "questions": qs})
-    res = sorted(env.get("results", []), key=lambda r: r.get("probability", 0), reverse=True)
+    payloads = [{"state": str(c.get("text", "")),
+                 "questions": {"item": {"type": "noul",
+                                        "instructions":
+                                            f"Is this relevant to: "
+                                            f"{d.get('query', '')}? Answer yes or no."}}}
+                for c in d.get("candidates", [])]
+    env = _tier1_cli_many(payloads)
+    for c, r in zip(d.get("candidates", []), env.get("results", []), strict=False):
+        r["id"] = c.get("id", r.get("id"))
+    res = sorted(env.get("results", []), key=lambda r: r.get("probability", 0),
+                 reverse=True)
     env["results"] = res[:top_k]
     out.print_json(json.dumps(env))
 

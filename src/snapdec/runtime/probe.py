@@ -13,7 +13,7 @@ import httpx
 
 from .ipc import DEFAULT_PORT
 
-COMMON_PORTS = [8009, 8321, 8080, 3000, 8000, 5000]  # kev.serve, laya-serve, misc
+COMMON_PORTS = [8901, 8009, 8321, 8080, 3000, 8000, 5000]  # managed, kev.serve, misc
 
 
 @dataclass
@@ -36,6 +36,8 @@ def _probe_one(port: int, timeout: float = 0.6) -> FoundServer | None:
     try:
         with httpx.Client(timeout=timeout) as c:
             r = c.get(f"{base}/v1/models")
+            if r.status_code == 404:  # laya-serve: /models
+                r = c.get(f"{base}/models")
             if r.status_code != 200:
                 return None
             server = r.headers.get("server", "")

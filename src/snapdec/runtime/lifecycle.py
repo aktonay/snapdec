@@ -28,6 +28,14 @@ def _snapdec_cmd() -> list[str]:
 
 def start_daemon(wait_seconds: float = 10.0) -> bool:
     """Spawn a detached daemon; wait until it answers /healthz."""
+    from .. import config as _cfg
+
+    try:  # managed local backend: resurrect laya if it died
+        from . import provision
+
+        provision.ensure_running(_cfg.Config.load())
+    except Exception:
+        pass
     if ipc.ping():
         return True
     cmd = _snapdec_cmd() + ["daemon", "start-foreground"]

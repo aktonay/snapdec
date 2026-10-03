@@ -57,14 +57,17 @@ class RemoteSystemOne:
 
     def health(self) -> Health:
         try:
-            r = httpx.get(f"{self.base_url}/v1/models",
-                          headers=self._headers(), timeout=self.timeout)
-            if r.status_code in (200, 401, 403):
-                # 401/403 = server is up, key is wrong — still "reachable"
-                status = "ready" if r.status_code == 200 else "degraded"
-                return Health(status=status, device="remote",
+            with httpx.Client(timeout=self.timeout) as c:
+                r = c.get(f"{self.base_url}/v1/models", headers=self._headers())
+                if r.status_code == 404:  # laya-serve exposes /models, not /v1/models
+                    r = c.get(f"{self.base_url}/models", headers=self._headers())
+                if r.status_code in (200, 401, 403):
+                    # 401/403 = server is up, key is wrong — still "reachable"
+                    status = "ready" if r.status_code == 200 else "degraded"
+                    return Health(status=status, device="remote",
+                                  detail=f"HTTP {r.status_code}")
+                return Health(status="degraded", device="remote",
                               detail=f"HTTP {r.status_code}")
-            return Health(status="degraded", device="remote", detail=f"HTTP {r.status_code}")
         except httpx.HTTPError as e:
             return Health(status="failed", device="remote", detail=str(e))
 

@@ -51,15 +51,22 @@ def _tier1(payload: dict[str, Any]) -> dict[str, Any]:
         results = []
         for name, a in answers.items():
             probs = a.get("probabilities") or {}
+            p_yes: float | None = None
             row: dict[str, Any] = {"id": name}
             if a.get("type") == "noul":
-                row["verdict"] = "yes" if a.get("noul") else "no"
+                # wire may encode bool or P(yes) float (laya) — normalize
+                p = a.get("noul")
+                p_yes = (1.0 if p else 0.0) if isinstance(p, bool) else float(p or 0.0)
+                row["verdict"] = "yes" if p_yes > 0.5 else "no"
+                row["p_yes"] = round(p_yes, 4)
             elif a.get("type") == "choice":
                 row["label"] = a.get("choice")
             elif a.get("type") == "score":
                 row["score"] = a.get("score")
                 row["nearest_level"] = a.get("nearest_level")
-            row["probabilities"] = probs
+            row["probabilities"] = probs or (
+                {"yes": p_yes, "no": 1.0 - p_yes}
+                if a.get("type") == "noul" and p_yes is not None else {})
             results.append(decision_policy.apply_decision(row))
         latency = round((time.perf_counter() - started) * 1000, 1)
         info = _backend_info()
@@ -69,6 +76,25 @@ def _tier1(payload: dict[str, Any]) -> dict[str, Any]:
         return failure_envelope("no_backend", str(e))
     except Exception as e:  # noqa: BLE001 — never raise into the host agent
         return failure_envelope("error", f"{type(e).__name__}: {e}")
+
+
+def _tier1_many(payloads: list[dict[str, Any]]) -> dict[str, Any]:
+    """Fan-out (§4.6): one request per item so each item is its own state —
+    small-context backends can't answer N items against one shared blob.
+    Runs in parallel; results keep input order; latency = slowest call."""
+    import concurrent.futures as cf
+
+    t0 = time.perf_counter()
+    envs = []
+    with cf.ThreadPoolExecutor(max_workers=min(8, len(payloads) or 1)) as ex:
+        for env in ex.map(_tier1, payloads):
+            envs.append(env)
+    results = [r for env in envs for r in env.get("results", [])]
+    if not results and envs:
+        return envs[0]  # preserve the failure envelope shape
+    info = _backend_info()
+    info["latency_ms"] = round((time.perf_counter() - t0) * 1000, 1)
+    return make_envelope(results, backend=info)
 
 
 def build_server() -> Any:
@@ -97,15 +123,19 @@ def build_server() -> Any:
     def classify(items: list[dict[str, Any]], classes: dict[str, str],
                  instructions: str = "") -> dict[str, Any]:
         items = items[:MAX_ITEMS_PER_CALL]
-        questions = {
-            it.get("id", f"i{n}"): {
-                "type": "choice", "instructions": instructions,
-                "criteria": classes,
-            }
-            for n, it in enumerate(items)
-        }
-        state = "\n".join(str(i.get("text", "")) for i in items)
-        return _tier1({"state": state, "questions": questions})
+        # laya (and the wire contract) require non-empty instructions
+        instructions = instructions or \
+            "Pick the single best-fitting class for the text."
+        payloads = [{
+            "state": str(it.get("text", "")),
+            "questions": {"item": {"type": "choice",
+                                   "instructions": instructions,
+                                   "criteria": classes}},
+        } for it in items]
+        env = _tier1_many(payloads)
+        for it, r in zip(items, env.get("results", []), strict=False):
+            r["id"] = it.get("id", r.get("id"))
+        return env
 
     @server.tool(name="check", description=(
         "Yes/no questions about one piece of evidence. Input: evidence, "
@@ -127,12 +157,17 @@ def build_server() -> Any:
         if not 2 <= len(levels) <= 10:
             return failure_envelope("error", "levels must have 2..10 entries")
         items = items[:MAX_ITEMS_PER_CALL]
-        questions = {
-            it.get("id", f"i{n}"): {"type": "score", "criteria": levels}
-            for n, it in enumerate(items)
-        }
-        state = "\n".join(str(i.get("text", "")) for i in items)
-        return _tier1({"state": state, "questions": questions})
+        payloads = [{
+            "state": str(it.get("text", "")),
+            "questions": {"item": {"type": "score",
+                                   "instructions":
+                                       "Rate the item on the given scale.",
+                                   "criteria": levels}},
+        } for it in items]
+        env = _tier1_many(payloads)
+        for it, r in zip(items, env.get("results", []), strict=False):
+            r["id"] = it.get("id", r.get("id"))
+        return env
 
     @server.tool(name="rank", description=(
         "Rank candidates by relevance to a query. Input: query, "
@@ -141,16 +176,18 @@ def build_server() -> Any:
     def rank(query: str, candidates: list[dict[str, Any]],
              top_k: int = 10) -> dict[str, Any]:
         candidates = candidates[:MAX_ITEMS_PER_CALL]
-        questions = {
-            c.get("id", f"c{n}"): {"type": "noul",
-                                   "instructions": f"Relevant to: {query}"}
-            for n, c in enumerate(candidates)
-        }
-        state = query + "\n" + "\n".join(
-            f"[{c.get('id', '')}] {c.get('text', '')}" for c in candidates)
-        env = _tier1({"state": state, "questions": questions})
-        results = env.get("results", [])
-        ranked = sorted(results, key=lambda r: r.get("probability", 0), reverse=True)
+        payloads = [{
+            "state": str(c.get("text", "")),
+            "questions": {"item": {"type": "noul",
+                                   "instructions":
+                                       f"Is this relevant to: {query}? "
+                                       "Answer yes or no."}},
+        } for c in candidates]
+        env = _tier1_many(payloads)
+        for c, r in zip(candidates, env.get("results", []), strict=False):
+            r["id"] = c.get("id", r.get("id"))
+        ranked = sorted(env.get("results", []),
+                        key=lambda r: r.get("probability", 0), reverse=True)
         env["results"] = ranked[:top_k]
         env["any_relevant"] = bool(ranked) and ranked[0].get("probability", 0) > 0.5
         return env

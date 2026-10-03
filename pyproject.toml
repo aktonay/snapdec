@@ -5,10 +5,26 @@ build-backend = "hatchling.build"
 [project]
 name = "snapdec"
 dynamic = ["version"]
-description = "Local System One decision layer for coding agents"
+description = "Snap decisions for coding agents: one command wires a local or hosted System One decision backend into every coding agent (MCP + Agent Skill)."
 readme = "README.md"
 license = "Apache-2.0"
+license-files = ["LICENSE"]
 requires-python = ">=3.10"
+authors = [{ name = "AKTONAY" }]
+keywords = ["llm", "mcp", "agents", "coding-agents", "cli", "jev", "kev", "laya", "system-one", "decisions"]
+classifiers = [
+  "Development Status :: 3 - Alpha",
+  "Environment :: Console",
+  "Intended Audience :: Developers",
+  "License :: OSI Approved :: Apache Software License",
+  "Operating System :: OS Independent",
+  "Programming Language :: Python :: 3",
+  "Programming Language :: Python :: 3.10",
+  "Programming Language :: Python :: 3.11",
+  "Programming Language :: Python :: 3.12",
+  "Programming Language :: Python :: 3.13",
+  "Topic :: Software Development :: Libraries",
+]
 dependencies = [
   "mcp>=2,<3",
   "typer>=0.12",

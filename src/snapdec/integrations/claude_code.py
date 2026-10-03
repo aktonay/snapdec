@@ -23,6 +23,7 @@ from .base import (
     backup_file,
     install_skill,
     load_json,
+    mcp_entry,
 )
 from .patchers import jsonc_merge
 
@@ -51,11 +52,12 @@ class ClaudeCodeIntegrator:
             ev.append(str(cfg))
         return Detection(installed, "; ".join(ev), config_paths=[str(cfg)])
 
-    def plan(self, exe: str) -> list[Action]:
+    def plan(self, cmd: list[str]) -> list[Action]:
         cli = self._cli()
         if cli:
             return [
-                Action("CLI", f"claude mcp add --scope user {NAME} -- {exe} mcp"),
+                Action("CLI", f"claude mcp add --scope user {NAME} -- "
+                              f"{' '.join(cmd)} mcp"),
                 Action("COPY_SKILL", str(self.skills_dir())),
             ]
         return [
@@ -63,19 +65,25 @@ class ClaudeCodeIntegrator:
             Action("COPY_SKILL", str(self.skills_dir())),
         ]
 
-    def apply(self, exe: str, dry_run: bool = False) -> Result:
+    def apply(self, cmd: list[str], dry_run: bool = False) -> Result:
         manifest = InstallManifest()
         cli = self._cli()
         actions: list[Action] = []
         snippets: list[str] = []
         if not dry_run:
             if cli:
-                # flags BEFORE the `--` (§2.2); startup needs < 1 s so no timeout key
-                cmd = [cli, "mcp", "add", "--scope", "user", NAME, "--", exe, "mcp"]
+                # idempotent re-registration: refresh an existing entry
                 try:
-                    r = subprocess.run(cmd, capture_output=True, text=True, timeout=30)
+                    subprocess.run([cli, "mcp", "remove", "--scope", "user", NAME],
+                                   capture_output=True, text=True, timeout=30)
+                except (OSError, subprocess.TimeoutExpired):
+                    pass
+                # flags BEFORE the `--` (§2.2); startup needs < 1 s so no timeout key
+                full = [cli, "mcp", "add", "--scope", "user", NAME, "--", *cmd, "mcp"]
+                try:
+                    r = subprocess.run(full, capture_output=True, text=True, timeout=30)
                     if r.returncode == 0:
-                        actions.append(Action("CLI", " ".join(cmd[:6]) + " …"))
+                        actions.append(Action("CLI", " ".join(full[:6]) + " …"))
                     else:
                         snippets.append(f"claude mcp add failed "
                                         f"(rc={r.returncode}): {r.stderr.strip()[:200]}")
@@ -83,9 +91,7 @@ class ClaudeCodeIntegrator:
                     snippets.append(f"claude CLI error: {e}")
             if not cli or snippets:
                 out = jsonc_merge(self.config_file(),
-                                  {"mcpServers": {NAME: {"type": "stdio",
-                                                         "command": exe,
-                                                         "args": ["mcp"], "env": {}}}},
+                                  {"mcpServers": {NAME: mcp_entry(cmd)}},
                                   manifest=manifest)
                 actions.extend(out.actions)
                 if out.snippet:

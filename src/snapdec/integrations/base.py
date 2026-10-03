@@ -18,12 +18,14 @@ from __future__ import annotations
 import json
 import os
 import shutil
+import sys
 from dataclasses import dataclass, field
 from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any, Protocol, runtime_checkable
 
 from .. import config
+from .._brand import NAME
 
 # ---------------------------------------------------------------- types
 
@@ -58,8 +60,8 @@ class Integrator(Protocol):
     display_name: str
 
     def detect(self) -> Detection: ...
-    def plan(self, exe: str) -> list[Action]: ...
-    def apply(self, exe: str, dry_run: bool = False) -> Result: ...
+    def plan(self, cmd: list[str]) -> list[Action]: ...
+    def apply(self, cmd: list[str], dry_run: bool = False) -> Result: ...
     def verify(self) -> list[tuple[bool, str]]: ...
     def remove(self) -> Result: ...
 
@@ -165,6 +167,15 @@ def install_skill(dest_dir: Path, manifest: InstallManifest) -> Action:
     return Action("COPY_SKILL", f"skill → {dest_dir}", target=str(dest_dir))
 
 
-def mcp_entry(exe: str) -> dict[str, Any]:
-    """Standard stdio server entry for `snapdec`."""
-    return {"type": "stdio", "command": exe, "args": ["mcp"], "env": {}}
+def snapdec_cmd() -> list[str]:
+    """Absolute command to launch the snapdec CLI (NFR-6: never a bare
+    name that may not be on the agent's PATH)."""
+    exe = shutil.which(NAME)
+    if exe:
+        return [exe]
+    return [sys.executable, "-m", "snapdec.cli"]
+
+
+def mcp_entry(cmd: list[str]) -> dict[str, Any]:
+    """Standard stdio server entry for `snapdec` (cmd = snapdec_cmd())."""
+    return {"type": "stdio", "command": cmd[0], "args": cmd[1:] + ["mcp"], "env": {}}

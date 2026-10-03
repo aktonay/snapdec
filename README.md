@@ -1,57 +1,68 @@
 # snapdec
 
-**One install. Any machine. Any coding agent.** Fast, calibrated, *local* typed
-decisions (classify / check / score / rank) exposed to every coding agent through
-one shared MCP server + a portable Agent Skill.
+<!-- mcp-name: io.github.aktonay/snapdec -->
 
-> `snapdec` — "snap decision". The architecture/research document predates the
-> rename and still uses the internal placeholder `sysone`
-> ([SYSONE_ARCHITECTURE.md](SYSONE_ARCHITECTURE.md), rename ADR:
-> [docs/adr/0007](docs/adr/0007-rename-snapdec.md)). Not affiliated with
-> TypeSafe/Jev, Kev, or Laya.
+**Snap decisions for coding agents.** One command, any machine, any agent:
+fast, calibrated typed decisions (classify / check / score / rank) from a
+local model or hosted API — exposed to every coding agent through one shared
+MCP server plus a portable Agent Skill.
 
-Status: **Phase 1 (MVP) in development.** Backends live today: `tier0`
-(deterministic, no model), `mock` (deterministic dev backend), `remote`
-(any `/v1/systemone` server — hosted TypeSafe Jev, OpenRouter, your own
-`kev.serve` / `laya-serve`). Managed local model provisioning (Laya ONNX/MLX,
-Kev) lands in Phase 2.
+- **One prompt setup** — snapdec shows your PC spec and a menu of every backend
+  your hardware can actually run, with honest accuracy stats. You choose.
+- **Local = fully automatic** — pick a local model and snapdec creates a
+  runtime venv, downloads the model, launches the server (127.0.0.1 only),
+  and wires it into every coding agent it finds. No other steps.
+- **Hosted = paste a key** — provider auto-detected from the key format, model
+  auto-selected (free variant first), validated by a live canary call.
+- **Honest by design** — every answer carries calibrated probabilities and an
+  `auto | review` decision. Uncertain → the agent decides itself. Advisory
+  only; never used to approve destructive actions.
 
-## Install (dev, pre-release)
-
-```bash
-uv tool install -e .   # or: pipx install snapdec (once published)
-```
-
-## Quickstart
+## Install
 
 ```bash
-snapdec init            # hardware check → backend wizard → wires every agent found
-snapdec doctor --live   # verify install, daemon, per-agent registration
+uv tool install snapdec     # or: pipx install snapdec / pip install snapdec
+snapdec init
 ```
 
-The wizard (first run) is **one prompt, fully automatic**:
+Dev (from source): `uv venv && uv pip install -e ".[dev]" && uv run pytest`
+
+## The first-run menu (real example, 16 GB laptop, no dGPU)
 
 ```
-Decision backend — paste a key for hosted, or press Enter for free & local.
+Recommended for this machine (13th Gen i5 · 16 GB RAM · Intel UHD · Windows 11)
 
-API key (Enter = free & local):
+  LOCAL — free · private · offline
+    [1] Laya EN (421M)  —  DI ~0 zero-shot (specialize-first base)
+        5–15 ms GPU/Apple · 50–450 ms CPU · setup: ~2 GB        (recommended)
+    [2] Laya multilingual (322M)  —  DI ~0 zero-shot · 100+ languages
+    [3] Kev 0.8B  —  DI 13.26 · OOD acc 0.652
+        ~40–80 ms CUDA · CPU: seconds/question · setup: ~3 GB   [slow on CPU]
+  HOSTED — API key · best accuracy
+    [4] OpenRouter  —  free keys (openrouter.ai/keys) · hosts Jev + Kev · Jev DI 51.67 (best known)
+    [5] TypeSafe Jev  —  native /v1/systemone · Jev DI 51.67 (best known) · paid per call
+    [6] Other /v1/systemone URL
+
+Choice [1]:
 ```
 
-- **Paste any key** → provider auto-detected from the key format (OpenRouter /
-  TypeSafe detected; OpenAI/Groq/Anthropic keys get a clear "not System One
-  compatible — here's what to use" hint, never a silent misroute) → model
-  auto-picked for your device with a **free-variant-first, paid-fallback**
-  chain validated by a live canary call.
-- **Press Enter** → snapdec auto-probes localhost for any running
-  `/v1/systemone` server (`kev.serve`, `laya-serve`, …), takes the first that
-  answers, and reads the model list from the server itself. Nothing found →
-  exact commands to start one are printed, and Tier-0 (deterministic,
-  zero-model) is configured so the tools still work.
-- Keys live only in snapdec's own config (env-var reference or 0600 file) —
-  **never** copied into agent configs (ADR-0006).
+Only what fits your hardware is listed — a machine without a 12 GB+ GPU never
+sees Kev-4B (DI 31.31); every listed option is genuinely runnable. Stats are
+zero-shot Decision Index numbers (chance-corrected, 40 benchmarks; Jev 51.67
+is the best known reference) from [our research](SYSONE_ARCHITECTURE.md#13).
 
-Non-interactive: `snapdec init --yes --api-key sk-or-…` (or
-`--backend hosted:openrouter|local|tier0|mock` for explicit control).
+Picking `[3]` on the machine above works — you get the honest `[slow on CPU]`
+flag first. Freedom within your spec.
+
+After you choose, snapdec automatically:
+
+1. provisions the backend (local: venv + download + server; hosted: key
+   validation + model canary),
+2. registers its MCP server in **every coding agent it detects** (Claude
+   Code, Codex, Cursor, OpenCode, Antigravity, Windsurf, VS Code, Cline —
+   CLI-first, backup-first, exactly reversible),
+3. installs the Agent Skill globally so every repo gets it,
+4. starts the shared daemon and prints a live health check.
 
 ## What agents get
 
@@ -63,32 +74,69 @@ Non-interactive: `snapdec init --yes --api-key sk-or-…` (or
 | `score` | 1 | Ordinal rating (severity/priority/risk), 2–10 levels |
 | `rank` | 1 | Which candidates answer a query |
 
-Every Tier-1 answer carries `decision: auto | review` — the model abstains
-honestly; the host agent decides `review` items itself. Advisory only: never
-used to approve destructive commands or authorize anything security-relevant.
+Multi-item tools fan out one request per item (small-context backends can't
+answer N items against one blob) and run the calls in parallel.
 
-## Supported agents
+Example (CLI mirror of the MCP tool, real output from Laya on a CPU laptop):
 
-Claude Code · Codex · Cursor · OpenCode · Antigravity · Windsurf · VS Code
-(Copilot) · Cline · any agent via the cross-agent `~/.agents/skills` dir.
-CLI-first registration (`claude mcp add`, `codex mcp add`), config edits only as
-backup-first, atomic, idempotent fallback. `snapdec uninstall` reverses exactly.
+```
+$ echo '{"items":[
+    {"id":"t1","text":"Tests failed: OSError network unreachable on runner"},
+    {"id":"t2","text":"AssertionError: expected status 200, got 500"},
+    {"id":"t3","text":"ModuleNotFoundError: No module named requests"}],
+  "classes":{"infra":"network/runner problem","bug":"real code bug",
+             "deps":"missing dependency"}}' | snapdec classify --input -
 
-## Uninstall
-
-```bash
-snapdec uninstall             # reverses every integration, stops the daemon
-snapdec uninstall --purge-models   # also removes all snapdec state
+t1: bug    p=0.73  decision=review
+t2: bug    p=0.94  decision=auto
+t3: deps   p=0.61  decision=review
 ```
 
-## Development
+`auto` results can be acted on in bulk; `review` items go back to the host
+agent — that abstention is the product.
 
-```bash
-uv venv && uv pip install -e ".[dev]"
-uv run pytest
+## CLI
+
+```
+snapdec init                 # the wizard (above)
+snapdec init --yes --api-key sk-or-…      # non-interactive, provider auto-detected
+snapdec init --yes --backend local        # non-interactive managed local setup
+snapdec doctor --live        # verify install, daemon, every agent registration
+snapdec daemon start|stop|status|logs
+snapdec agents list|add|remove|print      # integrations, all reversible
+snapdec classify|check|score|rank --input -   # CLI mirrors of the tools
+snapdec project-facts .      # tier-0 facts straight from the terminal
+snapdec uninstall            # reverses every integration exactly
 ```
 
-Architecture, research findings, and the phase plan live in
-[SYSONE_ARCHITECTURE.md](SYSONE_ARCHITECTURE.md). ADRs in `docs/adr/`.
+## Architecture (30 seconds)
 
-License: Apache-2.0.
+```
+agents (Claude Code, Codex, Cursor, …)
+   │ stdio MCP (one thin shim per agent, <1 s start, no ML imports)
+   ▼
+snapdec daemon (one shared process, loopback+token IPC / UDS)
+   ▼
+backend: managed Laya (8901) · managed Kev (8902, pinned git SHA)
+         · hosted /v1/systemone (OpenRouter, TypeSafe, any URL) · mock
+```
+
+Keys live only in snapdec's own state (env-var reference or 0600 file) —
+never in agent configs. Local servers bind 127.0.0.1 only. No telemetry.
+
+Full design doc with research citations: [SYSONE_ARCHITECTURE.md](SYSONE_ARCHITECTURE.md)
+· decisions: [docs/adr/](docs/adr/)
+
+## Status
+
+Phase 1/2 complete for: tier-0, managed Laya + Kev provisioning, hosted
+backends, 9 agent integrations, MCP v2 shim + shared daemon. Windows is
+verified on real hardware; macOS/Linux covered by CI and follow the same
+paths. Honest gaps: Kev on CPU is slow (flagged in the menu, not hidden);
+Laya zero-shot is weak (it's a specialize-first base — the stats say so in
+the menu); calibration refit and micro-batching are Phase 4.
+
+## License
+
+Apache-2.0. Not affiliated with TypeSafe/Jev, Kev, or Laya — snapdec routes
+to them and credits them. Model licenses: Apache-2.0 (Kev, Laya).
