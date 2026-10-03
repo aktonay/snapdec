@@ -29,21 +29,29 @@ snapdec init            # hardware check → backend wizard → wires every agen
 snapdec doctor --live   # verify install, daemon, per-agent registration
 ```
 
-The wizard (first run):
+The wizard (first run) is **one prompt, fully automatic**:
 
 ```
-How should snapdec make decisions on this machine?   (13th Gen i5 · 16 GB · Windows)
+Decision backend — paste a key for hosted, or press Enter for free & local.
 
-  [1] Hosted — I have an API key        (text leaves this machine)
-        a) TypeSafe Jev   b) OpenRouter   c) other /v1/systemone URL
-  [2] Local — free, private             (Phase 1: point at your kev.serve / laya-serve URL)
-        recommended for this machine: laya-multilingual via ONNX Runtime CPU (INT8)
-  [3] Tier-0 only — no model             (deterministic project_facts)
-  [4] Mock — deterministic dev backend
+API key (Enter = free & local):
 ```
 
-Keys live only in snapdec's own config (env-var reference or 0600 file) —
-**never** copied into agent configs (ADR-006).
+- **Paste any key** → provider auto-detected from the key format (OpenRouter /
+  TypeSafe detected; OpenAI/Groq/Anthropic keys get a clear "not System One
+  compatible — here's what to use" hint, never a silent misroute) → model
+  auto-picked for your device with a **free-variant-first, paid-fallback**
+  chain validated by a live canary call.
+- **Press Enter** → snapdec auto-probes localhost for any running
+  `/v1/systemone` server (`kev.serve`, `laya-serve`, …), takes the first that
+  answers, and reads the model list from the server itself. Nothing found →
+  exact commands to start one are printed, and Tier-0 (deterministic,
+  zero-model) is configured so the tools still work.
+- Keys live only in snapdec's own config (env-var reference or 0600 file) —
+  **never** copied into agent configs (ADR-0006).
+
+Non-interactive: `snapdec init --yes --api-key sk-or-…` (or
+`--backend hosted:openrouter|local|tier0|mock` for explicit control).
 
 ## What agents get
 

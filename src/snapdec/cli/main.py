@@ -7,7 +7,6 @@ classify/check/score/rank | models (stub) | backend | uninstall | version
 from __future__ import annotations
 
 import json
-import os
 import sys
 import time
 from typing import Any
@@ -65,79 +64,137 @@ def _print_hardware() -> None:
             err.print(f"[yellow]note:[/yellow] {n}")
 
 
-def _choose_backend(opts: dict[str, Any]) -> config.Config:
-    """Step 2 of the wizard (§9.1): hosted key / local / tier-0 / mock."""
-    prof = select_profile(hw_detect())
-    out.print("\n[bold]How should snapdec make decisions on this machine?[/bold]\n")
-    out.print("  [1] Hosted — I have an API key        (text leaves this machine)")
-    out.print("      a) TypeSafe Jev   b) OpenRouter   c) other /v1/systemone URL")
-    out.print("  [2] Local — free, private            (Phase 1: point at your "
-              "kev.serve / laya-serve URL)")
-    out.print(f"      recommended for this machine: [bold]{prof.default_model or 'tier-0'}[/bold]"
-              f" via {prof.runtime}")
-    out.print("  [3] Tier-0 only — no model           (deterministic project_facts)")
-    out.print("  [4] Mock — deterministic dev backend\n")
-    choice = typer.prompt("Choice", default="3").strip()
+def _apply_key(cfg: config.Config, key: str) -> bool:
+    """Paste-a-key = fully automatic: provider from prefix, model from
+    device + free-first fallback chain, key stored 0600."""
+    from ..backends.keydetect import detect_provider, pick_model
 
-    cfg = config.Config(profile=prof.id)
-    if choice in ("1", "1a", "1b", "1c"):
-        sub = choice[1:] if len(choice) > 1 else \
-            typer.prompt("  a/b/c", default="a").strip()
-        if sub == "a":
-            url, model, envvar = HOSTED_PRESETS["typesafe"]
-        elif sub == "b":
-            url, model, envvar = HOSTED_PRESETS["openrouter"]
+    guess = detect_provider(key)
+    if guess.provider.startswith("unsupported"):
+        err.print(f"[red]key not usable:[/red] {guess.note}")
+        return False
+    if guess.provider == "unknown":
+        out.print("  key format not recognized — pick the provider:")
+        pick = typer.prompt("  1=OpenRouter 2=TypeSafe 3=custom URL", default="1").strip()
+        if pick == "2":
+            guess = detect_provider("ts-")
+        elif pick == "3":
+            cfg.backend, cfg.backend_label = "remote", "hosted"
+            cfg.remote_url = typer.prompt("  Base URL").strip()
+            cfg.model = typer.prompt("  Model (empty = server default)", "").strip() or ""
+            config.store_api_key(key)
+            cfg.api_key_stored = True
+            return True
         else:
-            url = typer.prompt("  Base URL").strip()
-            model, envvar = "", ""
-        cfg.backend, cfg.backend_label = "remote", "hosted"
-        cfg.remote_url, cfg.model = url, model
-        key_env = typer.prompt("  API key env var (empty = paste key, stored 0600)",
-                               default=envvar).strip()
-        if key_env:
-            cfg.api_key_env = key_env
-            if not opts.get("yes") and not os.environ.get(key_env):
-                err.print(f"[yellow]warning:[/yellow] ${key_env} is not set right now; "
-                          "the daemon will read it when it runs")
-        else:
-            key = typer.prompt("  API key", hide_input=True).strip()
-            if key:
-                config.store_api_key(key)
-                cfg.api_key_stored = True
-    elif choice == "2":
-        url = typer.prompt("  Local server URL (e.g. http://127.0.0.1:8009)",
-                           default="http://127.0.0.1:8009").strip()
-        model = typer.prompt("  Model (e.g. kev-latest)", default="kev-latest").strip()
-        cfg.backend, cfg.backend_label = "remote", "local-server"
-        cfg.remote_url, cfg.model = url, model
-    elif choice == "4":
-        cfg.backend = "mock"
-    else:
+            guess = detect_provider("sk-or-")
+    config.store_api_key(key)
+    cfg.api_key_stored = True
+    cfg.backend, cfg.backend_label = "remote", "hosted"
+    cfg.remote_url = guess.url
+    cfg.model = pick_model(guess, low_power=(cfg.profile in ("tier0", "cpu")))
+    out.print(f"  [green]auto[/green]: {guess.note} · model: "
+              f"[bold]{cfg.model or '(server default)'}[/bold]")
+    return True
+
+
+def _auto_local(cfg: config.Config) -> None:
+    """Local = fully automatic: probe running servers, take the first that
+    answers, model from its own /v1/models list. No typing."""
+    from ..runtime.probe import probe_local_systemone
+
+    found = probe_local_systemone()
+    if not found:
+        out.print("  [yellow]no local /v1/systemone server running[/yellow]")
+        out.print("  start one (pick any):")
+        out.print("    uv run --with 'laya[serve]' laya-serve        # smallest, CPU")
+        out.print("    uv run --extra serve python -m kev.serve --run jaredpalmer/kev-0.8b")
+        out.print("  then re-run [bold]" + NAME + " init[/bold] — it will be found "
+                  "automatically.")
+        out.print("  (Phase 2 will install+launch these for you; today: fallback "
+                  "to Tier-0)")
         cfg.backend = "tier0"
+        return
+    f = found[0]
+    cfg.backend, cfg.backend_label = "remote", "local-server"
+    cfg.remote_url, cfg.model = f.url, f.model
+    extra = f" · models: {', '.join(f.models[:3])}" if f.models else ""
+    out.print(f"  [green]auto[/green]: found server {f.url}{extra} · "
+              f"model: [bold]{f.model or '(default)'}[/bold]")
+
+
+def _auto_backend(opts: dict[str, Any], api_key: str | None = None) -> config.Config:
+    """The auto wizard (§9.1): ONE prompt, everything else decided."""
+    prof = select_profile(hw_detect())
+    cfg = config.Config(profile=prof.id)
+
+    out.print("\n[bold]Decision backend[/bold] — paste a key for hosted, "
+              "or press Enter for free & local.\n")
+    key = api_key
+    if key is None and not opts.get("yes"):
+        key = typer.prompt("API key (Enter = free & local)", hide_input=True,
+                           default="", show_default=False).strip() or None
+    if key:
+        if not _apply_key(cfg, key):
+            # retry once, then fall back to local probe
+            key2 = typer.prompt("API key (Enter = free & local)", hide_input=True,
+                                default="", show_default=False).strip() or None \
+                if not opts.get("yes") else None
+            if not key2 or not _apply_key(cfg, key2):
+                _auto_local(cfg)
+    else:
+        if opts.get("yes"):
+            _auto_local(cfg)  # non-interactive: probe, else tier0
+        else:
+            _auto_local(cfg)
     return cfg
 
 
 def _canary(cfg: config.Config) -> tuple[bool, str]:
-    """Live validation of the chosen backend (wizard step 4)."""
+    """Live validation; tries the model fallback chain automatically."""
     t0 = time.perf_counter()
+    from ..backends.keydetect import provider_by_id
     from ..backends.mock import MockBackend
     from ..backends.remote_systemone import RemoteSystemOne
 
     if cfg.backend == "mock":
         be = MockBackend()
-    elif cfg.backend == "remote":
-        be = RemoteSystemOne(cfg.remote_url, cfg.model, config.get_api_key(cfg))
-    else:
+        try:
+            be.system_one(SystemOneRequest(
+                state="canary", questions={"ok": {"type": "noul",
+                                                  "instructions": "ping"}}))
+        except Exception as e:  # noqa: BLE001
+            return False, f"{type(e).__name__}: {e}"
+        return True, "mock · ready"
+    if cfg.backend != "remote":
         return True, "tier-0: no model to validate"
-    h = be.health()
-    if h.status == "failed":
-        return False, h.detail
-    try:
-        be.system_one(SystemOneRequest(
-            state="canary", questions={"ok": {"type": "noul", "instructions": "ping"}}))
-    except Exception as e:  # noqa: BLE001
-        return False, f"{type(e).__name__}: {e}"
-    return True, f"{h.status} · {int((time.perf_counter()-t0)*1000)} ms"
+
+    key = config.get_api_key(cfg)
+    candidates: list[str] = []
+    if cfg.remote_url == "https://openrouter.ai/api/v1":
+        candidates = list(provider_by_id("openrouter").default_models)
+    elif cfg.backend_label == "hosted" and cfg.remote_url == "https://api.typesafe.ai":
+        candidates = list(provider_by_id("typesafe").default_models)
+    if cfg.model and cfg.model not in candidates:
+        candidates = [cfg.model] + candidates
+    candidates = candidates or [cfg.model]
+
+    last_err = ""
+    for model in candidates:
+        be = RemoteSystemOne(cfg.remote_url, model, key)
+        h = be.health()
+        if h.status == "failed":
+            return False, h.detail
+        try:
+            be.system_one(SystemOneRequest(
+                state="canary", questions={"ok": {"type": "noul",
+                                                  "instructions": "ping"}}))
+            cfg.model = model  # winner — free variant first, paid fallback
+            paid = "" if ":free" in model else " (paid)"
+            ms = int((time.perf_counter() - t0) * 1000)
+            return True, f"model {model}{paid} · {ms} ms"
+        except Exception as e:  # noqa: BLE001 — try next candidate
+            last_err = f"{model}: {type(e).__name__}"
+    return False, f"no working model ({last_err})"
 
 
 @app.command()
@@ -145,11 +202,14 @@ def init(
     yes: bool = typer.Option(False, "--yes", help="non-interactive (CI)"),
     dry_run: bool = typer.Option(False, "--dry-run"),
     backend: str | None = typer.Option(None, "--backend",
-                                          help="hosted:typesafe|hosted:openrouter|"
-                                               "hosted:<url>|local|tier0|mock"),
+                                          help="auto (default)|hosted:typesafe|"
+                                               "hosted:openrouter|hosted:<url>|"
+                                               "local|tier0|mock"),
     remote_url: str | None = typer.Option(None),
     model: str | None = typer.Option(None),
     api_key_env: str | None = typer.Option(None),
+    api_key: str | None = typer.Option(None, "--api-key",
+                                       help="paste a key → provider+model fully auto"),
     agents: str | None = typer.Option(None, "--agents", help="comma list, or 'all'"),
 ) -> None:
     """First-run wizard: hardware -> backend -> agents wired -> live check."""
@@ -157,7 +217,9 @@ def init(
     _print_hardware()
 
     cfg = config.Config.load()
-    if backend:
+    if backend == "auto" or (backend is None and (api_key or not yes)):
+        cfg = _auto_backend({"yes": yes}, api_key=api_key)
+    elif backend:
         cfg.profile = select_profile(hw_detect()).id
         if backend.startswith("hosted:"):
             preset = backend.removeprefix("hosted:")
@@ -178,11 +240,9 @@ def init(
             cfg.model = model
         if api_key_env:
             cfg.api_key_env = api_key_env
-    elif not yes:
-        cfg = _choose_backend({"yes": yes})
     else:
-        err.print("[red]--yes requires --backend[/red]")
-        raise typer.Exit(2)
+        # non-interactive with no backend: probe local, else tier0
+        cfg = _auto_backend({"yes": True})
 
     # ---- agents
     wanted = agents.split(",") if agents and agents != "all" else None

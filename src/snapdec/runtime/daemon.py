@@ -108,21 +108,10 @@ def run_daemon(port: int | None = None) -> int:
                 return True  # no token yet (fresh state) or match
             return False
 
-        def do_GET(self):  # noqa: N802 (http.server API)
-            if self.path == "/healthz":
-                h = backend.health() if backend else None
-                self._send(200, {"ok": True, "backend": cfg.backend,
-                                 "health": h.__dict__ if h else None})
-            elif self.path == "/v1/models":
-                if backend and hasattr(backend, "health"):
-                    self._send(200, {"models": [cfg.model or "default"]})
-                else:
-                    self._send(200, {"models": []})
-            else:
-                self._send(404, {"error": "not found"})
-
         def do_POST(self):  # noqa: N802
             if self.path == "/shutdown":
+                # unauthenticated by design: loopback-only bind is the boundary;
+                # requiring the token here deadlocks stale-daemon replacement
                 self._send(200, {"ok": True})
                 import threading
 
@@ -142,6 +131,19 @@ def run_daemon(port: int | None = None) -> int:
                 return
             code, obj = _handle_systemone(backend, payload)
             self._send(code, obj)
+
+        def do_GET(self):  # noqa: N802 (http.server API)
+            if self.path == "/healthz":
+                h = backend.health() if backend else None
+                self._send(200, {"ok": True, "backend": cfg.backend,
+                                 "health": h.__dict__ if h else None})
+            elif self.path == "/v1/models":
+                if backend and hasattr(backend, "health"):
+                    self._send(200, {"models": [cfg.model or "default"]})
+                else:
+                    self._send(200, {"models": []})
+            else:
+                self._send(404, {"error": "not found"})
 
         def log_message(self, fmt: str, *args: Any) -> None:  # quiet stderr
             log.info("%s", fmt % args)
