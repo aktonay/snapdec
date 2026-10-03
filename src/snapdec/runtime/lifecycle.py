@@ -12,25 +12,25 @@ from .. import config
 from . import ipc
 
 
-def _which_sysone() -> os.PathLike[str] | None:
+def _which_snapdec() -> os.PathLike[str] | None:
     import shutil
 
-    return shutil.which("sysone")
+    return shutil.which("snapdec")
 
 
-def _sysone_cmd() -> list[str]:
-    """Absolute command to run `sysone` (NFR-6: never rely on PATH)."""
-    exe = _which_sysone()
+def _snapdec_cmd() -> list[str]:
+    """Absolute command to run `snapdec` (NFR-6: never rely on PATH)."""
+    exe = _which_snapdec()
     if exe:
         return [str(exe)]
-    return [sys.executable, "-m", "sysone.cli"]  # resolves to cli/__main__.py
+    return [sys.executable, "-m", "snapdec.cli"]  # resolves to cli/__main__.py
 
 
 def start_daemon(wait_seconds: float = 10.0) -> bool:
     """Spawn a detached daemon; wait until it answers /healthz."""
     if ipc.ping():
         return True
-    cmd = _sysone_cmd() + ["daemon", "start-foreground"]
+    cmd = _snapdec_cmd() + ["daemon", "start-foreground"]
     kwargs: dict[str, Any] = {}
     if sys.platform == "win32":
         kwargs["creationflags"] = (

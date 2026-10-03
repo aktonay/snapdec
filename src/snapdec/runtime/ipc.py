@@ -34,7 +34,7 @@ def _state_file() -> Path:
 def _uds_path() -> Path:
     xdg = os.environ.get("XDG_RUNTIME_DIR")
     base = Path(xdg) if xdg else config.state_dir()
-    return base / "sysone.sock"
+    return base / "snapdec.sock"
 
 
 def use_uds() -> bool:
@@ -128,7 +128,7 @@ def call_systemone(payload: dict[str, Any]) -> dict[str, Any]:
     """POST /v1/systemone; raises on transport error (shim fails closed)."""
     c = _client()
     if c is None:
-        raise ConnectionError("sysone daemon is not running (no state file)")
+        raise ConnectionError("snapdec daemon is not running (no state file)")
     try:
         with c:
             r = c.post("/v1/systemone", json=payload)

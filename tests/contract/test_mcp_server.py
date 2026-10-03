@@ -2,7 +2,7 @@ from __future__ import annotations
 
 import json
 
-from sysone.mcp.server import build_server
+from snapdec.mcp.server import build_server
 
 # pytest-asyncio auto mode (pyproject asyncio_mode=auto)
 
@@ -34,9 +34,9 @@ async def test_tier1_fail_closed_without_daemon(tmp_path, monkeypatch):
     """No daemon → a review envelope, never an exception (NFR-4)."""
     from mcp import Client
 
-    import sysone.mcp.server as srv
+    import snapdec.mcp.server as srv
 
-    monkeypatch.setenv("SYSONE_HOME", str(tmp_path / "nowhere"))
+    monkeypatch.setenv("SNAPDEC_HOME", str(tmp_path / "nowhere"))
     monkeypatch.setattr(srv, "warm_daemon", lambda: False)
     monkeypatch.setattr(srv.ipc, "ping", lambda: False)
     async with Client(build_server()) as client:
@@ -52,8 +52,8 @@ async def test_tier1_fail_closed_without_daemon(tmp_path, monkeypatch):
 async def test_tier1_with_mock_daemon(tmp_home):
     from mcp import Client
 
-    from sysone import config
-    from sysone.runtime.lifecycle import start_daemon, stop_daemon
+    from snapdec import config
+    from snapdec.runtime.lifecycle import start_daemon, stop_daemon
 
     config.Config(backend="mock").save()
     assert start_daemon()

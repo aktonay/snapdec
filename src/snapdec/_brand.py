@@ -5,4 +5,4 @@ Do not hardcode the name anywhere else.
 """
 
 __version__ = "0.1.0"
-NAME = "sysone"  # PLACEHOLDER — pending owner decision (SYSONE_ARCHITECTURE.md §1.4, §17)
+NAME = "snapdec"  # final — rename gate cleared 2026-10-03, see docs/adr/0007

@@ -1,6 +1,6 @@
 """Codex — CLI-first, TOML fallback via tomlkit (§8.3 row 2).
 
-~/.codex/config.toml → [mcp_servers.sysone]; CODEX_HOME relocates the
+~/.codex/config.toml → [mcp_servers.snapdec]; CODEX_HOME relocates the
 directory (respected here). Comments preserved by tomlkit.
 """
 

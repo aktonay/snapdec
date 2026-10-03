@@ -1,11 +1,13 @@
-# sysone
+# snapdec
 
 **One install. Any machine. Any coding agent.** Fast, calibrated, *local* typed
 decisions (classify / check / score / rank) exposed to every coding agent through
 one shared MCP server + a portable Agent Skill.
 
-> Working name `sysone` — placeholder until the rename gate clears
-> ([SYSONE_ARCHITECTURE.md §1.4](SYSONE_ARCHITECTURE.md)). Not affiliated with
+> `snapdec` — "snap decision". The architecture/research document predates the
+> rename and still uses the internal placeholder `sysone`
+> ([SYSONE_ARCHITECTURE.md](SYSONE_ARCHITECTURE.md), rename ADR:
+> [docs/adr/0007](docs/adr/0007-rename-snapdec.md)). Not affiliated with
 > TypeSafe/Jev, Kev, or Laya.
 
 Status: **Phase 1 (MVP) in development.** Backends live today: `tier0`
@@ -17,20 +19,20 @@ Kev) lands in Phase 2.
 ## Install (dev, pre-release)
 
 ```bash
-uv tool install -e .   # or: pipx install sysone (once published)
+uv tool install -e .   # or: pipx install snapdec (once published)
 ```
 
 ## Quickstart
 
 ```bash
-sysone init            # hardware check → backend wizard → wires every agent found
-sysone doctor --live   # verify install, daemon, per-agent registration
+snapdec init            # hardware check → backend wizard → wires every agent found
+snapdec doctor --live   # verify install, daemon, per-agent registration
 ```
 
 The wizard (first run):
 
 ```
-How should sysone make decisions on this machine?   (13th Gen i5 · 16 GB · Windows)
+How should snapdec make decisions on this machine?   (13th Gen i5 · 16 GB · Windows)
 
   [1] Hosted — I have an API key        (text leaves this machine)
         a) TypeSafe Jev   b) OpenRouter   c) other /v1/systemone URL
@@ -40,7 +42,7 @@ How should sysone make decisions on this machine?   (13th Gen i5 · 16 GB · Win
   [4] Mock — deterministic dev backend
 ```
 
-Keys live only in sysone's own config (env-var reference or 0600 file) —
+Keys live only in snapdec's own config (env-var reference or 0600 file) —
 **never** copied into agent configs (ADR-006).
 
 ## What agents get
@@ -62,13 +64,13 @@ used to approve destructive commands or authorize anything security-relevant.
 Claude Code · Codex · Cursor · OpenCode · Antigravity · Windsurf · VS Code
 (Copilot) · Cline · any agent via the cross-agent `~/.agents/skills` dir.
 CLI-first registration (`claude mcp add`, `codex mcp add`), config edits only as
-backup-first, atomic, idempotent fallback. `sysone uninstall` reverses exactly.
+backup-first, atomic, idempotent fallback. `snapdec uninstall` reverses exactly.
 
 ## Uninstall
 
 ```bash
-sysone uninstall             # reverses every integration, stops the daemon
-sysone uninstall --purge-models   # also removes all sysone state
+snapdec uninstall             # reverses every integration, stops the daemon
+snapdec uninstall --purge-models   # also removes all snapdec state
 ```
 
 ## Development

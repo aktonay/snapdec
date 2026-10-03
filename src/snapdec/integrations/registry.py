@@ -1,4 +1,4 @@
-"""Integrator registry — order = display order in `sysone init`."""
+"""Integrator registry — order = display order in `snapdec init`."""
 
 from __future__ import annotations
 

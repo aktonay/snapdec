@@ -1,4 +1,4 @@
-"""sysone CLI — Typer + Rich (§9).
+"""snapdec CLI — Typer + Rich (§9).
 
 Commands: init | mcp | daemon | doctor | agents | project-facts |
 classify/check/score/rank | models (stub) | backend | uninstall | version
@@ -68,7 +68,7 @@ def _print_hardware() -> None:
 def _choose_backend(opts: dict[str, Any]) -> config.Config:
     """Step 2 of the wizard (§9.1): hosted key / local / tier-0 / mock."""
     prof = select_profile(hw_detect())
-    out.print("\n[bold]How should sysone make decisions on this machine?[/bold]\n")
+    out.print("\n[bold]How should snapdec make decisions on this machine?[/bold]\n")
     out.print("  [1] Hosted — I have an API key        (text leaves this machine)")
     out.print("      a) TypeSafe Jev   b) OpenRouter   c) other /v1/systemone URL")
     out.print("  [2] Local — free, private            (Phase 1: point at your "
@@ -200,11 +200,11 @@ def init(
     results = []
     for _, integ, _d in chosen:
         if dry_run:
-            acts = integ.plan("sysone")
+            acts = integ.plan("snapdec")
             t.add_row(integ.display_name, "[blue]planned[/blue]",
                       "; ".join(a.detail for a in acts))
             continue
-        r = integ.apply("sysone")
+        r = integ.apply("snapdec")
         results.append((integ, r))
         status = "[green]ok[/green]" if r.ok and not r.manual_snippet else \
             "[yellow]partial[/yellow]"
@@ -266,7 +266,7 @@ def start() -> None:
     if start_daemon():
         out.print("[ok] daemon running")
     else:
-        err.print("[FAIL] daemon did not become healthy — check `sysone daemon logs`")
+        err.print("[FAIL] daemon did not become healthy — check `snapdec daemon logs`")
         raise typer.Exit(1)
 
 
@@ -362,9 +362,9 @@ def agents_list() -> None:
 def add(agent_id: str) -> None:
     integ = ALL_INTEGRATORS.get(agent_id)
     if not integ:
-        err.print(f"unknown agent: {agent_id} (see `sysone agents list`)")
+        err.print(f"unknown agent: {agent_id} (see `snapdec agents list`)")
         raise typer.Exit(2)
-    r = integ.apply("sysone")
+    r = integ.apply("snapdec")
     out.print(f"{'[ok]' if r.ok else '[FAIL]'} {r.detail}")
     if r.manual_snippet:
         err.print(r.manual_snippet)
@@ -394,7 +394,7 @@ def print_snippet(agent_id: str) -> None:
         raise typer.Exit(2)
     import shutil
 
-    exe = shutil.which("sysone") or "sysone"
+    exe = shutil.which("snapdec") or "snapdec"
     for a in integ.plan(exe):
         out.print(f"- {a.detail}")
     entry = {"type": "stdio", "command": exe, "args": ["mcp"], "env": {}}
@@ -411,11 +411,11 @@ def project_facts_cmd(path: str = typer.Argument(".")) -> None:
 
 def _tier1_cli(payload: dict[str, Any]) -> dict[str, Any]:
     if not ipc.ping() and not warm_daemon():
-        return failure_envelope("no_backend", "run `sysone daemon start` or `sysone init`")
+        return failure_envelope("no_backend", "run `snapdec daemon start` or `snapdec init`")
     try:
         raw = ipc.call_systemone(payload)
-        if raw.get("error") or raw.get("sysone_note"):
-            return failure_envelope("error", raw.get("error") or raw.get("sysone_note", ""))
+        if raw.get("error") or raw.get("snapdec_note"):
+            return failure_envelope("error", raw.get("error") or raw.get("snapdec_note", ""))
         results = []
         for name, a in (raw.get("answers") or {}).items():
             row = {"id": name}
@@ -525,7 +525,7 @@ def models() -> None:
 
 @app.command()
 def uninstall(purge: bool = typer.Option(False, "--purge-models",
-                                         help="also remove SYSONE_HOME")) -> None:
+                                         help="also remove SNAPDEC_HOME")) -> None:
     """Reverse every integration exactly; stop the daemon."""
     cfg = config.Config.load()
     for iid in cfg.agents:

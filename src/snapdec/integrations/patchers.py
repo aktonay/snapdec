@@ -64,7 +64,7 @@ def jsonc_merge(path: Path, updates: dict[str, Any], *,
         trailing = re.search(r'(?m):\s*"[^"]*"\s*//', text)
         if has_comments or trailing:
             snippet = (
-                f"# {path} contains comments — sysone will not rewrite it.\n"
+                f"# {path} contains comments — snapdec will not rewrite it.\n"
                 f"# Merge this by hand (key 'mcp'/'mcpServers' level):\n"
                 + json.dumps(updates, indent=2)
             )

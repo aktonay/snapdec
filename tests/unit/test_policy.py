@@ -1,7 +1,7 @@
 from __future__ import annotations
 
-from sysone.decisions.envelope import failure_envelope, make_envelope
-from sysone.decisions.policy import apply_decision, decide
+from snapdec.decisions.envelope import failure_envelope, make_envelope
+from snapdec.decisions.policy import apply_decision, decide
 
 
 def test_auto_when_confident_and_decisive():
@@ -47,8 +47,8 @@ def test_failure_envelope_never_empty_reason():
 
 
 def test_mock_backend_deterministic():
-    from sysone.backends.mock import MockBackend
-    from sysone.decisions.envelope import SystemOneRequest
+    from snapdec.backends.mock import MockBackend
+    from snapdec.decisions.envelope import SystemOneRequest
 
     be = MockBackend()
     req = SystemOneRequest(state="same input",

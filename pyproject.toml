@@ -3,7 +3,7 @@ requires = ["hatchling"]
 build-backend = "hatchling.build"
 
 [project]
-name = "sysone" # PLACEHOLDER — rename gate §1.4 of SYSONE_ARCHITECTURE.md (do not publish under this name)
+name = "snapdec"
 dynamic = ["version"]
 description = "Local System One decision layer for coding agents"
 readme = "README.md"
@@ -32,13 +32,13 @@ runtime-onnx-cpu = ["onnxruntime>=1.19"]
 runtime-onnx-dml = ["onnxruntime-directml>=1.19"]
 
 [project.scripts]
-sysone = "sysone.cli:app"
+snapdec = "snapdec.cli:app"
 
 [tool.hatch.version]
-path = "src/sysone/_brand.py"
+path = "src/snapdec/_brand.py"
 
 [tool.hatch.build.targets.wheel]
-packages = ["src/sysone"]
+packages = ["src/snapdec"]
 
 [tool.pytest.ini_options]
 testpaths = ["tests"]

@@ -3,7 +3,7 @@
 `claude mcp add --scope user` writes ~/.claude.json (top-level
 mcpServers); the file is rewritten frequently by Claude Code itself, so
 racing it with a manual edit risks corruption. File edit is fallback
-only. Skill dir: ~/.claude/skills/sysone/.
+only. Skill dir: ~/.claude/skills/snapdec/.
 """
 
 from __future__ import annotations

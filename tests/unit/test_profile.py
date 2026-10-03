@@ -1,7 +1,7 @@
 from __future__ import annotations
 
-from sysone.hardware.detect import GPU, HardwareReport
-from sysone.hardware.profile import select_profile
+from snapdec.hardware.detect import GPU, HardwareReport
+from snapdec.hardware.profile import select_profile
 
 
 def rep(**kw) -> HardwareReport:

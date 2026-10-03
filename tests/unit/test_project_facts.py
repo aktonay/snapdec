@@ -2,7 +2,7 @@ from __future__ import annotations
 
 import json
 
-from sysone.decisions.tier0.project_facts import project_facts
+from snapdec.decisions.tier0.project_facts import project_facts
 
 
 def test_python_uv_pytest(tmp_path):

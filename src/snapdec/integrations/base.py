@@ -118,7 +118,7 @@ def backup_file(path: Path) -> Path | None:
 def atomic_write(path: Path, content: str, *, mode: int | None = None) -> None:
     """Temp file in the same dir + os.replace; preserve permissions (rule 3)."""
     path.parent.mkdir(parents=True, exist_ok=True)
-    tmp = path.with_name(f"{path.name}.sysone-tmp")
+    tmp = path.with_name(f"{path.name}.snapdec-tmp")
     tmp.write_text(content, encoding="utf-8")
     if mode is not None:
         os.chmod(tmp, mode)
@@ -149,7 +149,7 @@ def merge_dict(base: dict[str, Any], updates: dict[str, Any]) -> dict[str, Any]:
 
 
 def skill_source_dir() -> Path:
-    return Path(__file__).parent.parent / "skills" / "sysone"
+    return Path(__file__).parent.parent / "skills" / "snapdec"
 
 
 def install_skill(dest_dir: Path, manifest: InstallManifest) -> Action:
@@ -166,5 +166,5 @@ def install_skill(dest_dir: Path, manifest: InstallManifest) -> Action:
 
 
 def mcp_entry(exe: str) -> dict[str, Any]:
-    """Standard stdio server entry for `sysone`."""
+    """Standard stdio server entry for `snapdec`."""
     return {"type": "stdio", "command": exe, "args": ["mcp"], "env": {}}

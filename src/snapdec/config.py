@@ -1,6 +1,6 @@
 """Paths and persisted configuration.
 
-Layout (SYSONE_HOME overrides everything, for tests and portable installs):
+Layout (SNAPDEC_HOME overrides everything, for tests and portable installs):
 
   <data>/config.json          user choices (backend, model, agents)
   <data>/state/daemon.json    PID, port/socket, token, version, started_at
@@ -27,7 +27,7 @@ from ._brand import NAME, __version__
 
 
 def home() -> Path:
-    env = os.environ.get("SYSONE_HOME")
+    env = os.environ.get("SNAPDEC_HOME")
     if env:
         return Path(env)
     return Path(user_data_dir(NAME))

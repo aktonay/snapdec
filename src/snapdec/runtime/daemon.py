@@ -1,4 +1,4 @@
-"""sysone daemon — one shared backend for all agents (§4).
+"""snapdec daemon — one shared backend for all agents (§4).
 
 Loads the configured backend ONCE and serves the System One wire
 contract over the IPC transport. Batching/calibration arrive in Phase 2;
@@ -20,7 +20,7 @@ from ..backends.remote_systemone import RemoteSystemOne
 from ..decisions.envelope import SystemOneRequest, SystemOneResponse
 from . import ipc
 
-log = logging.getLogger("sysone.daemon")
+log = logging.getLogger("snapdec.daemon")
 
 
 def setup_logging() -> None:
@@ -48,8 +48,8 @@ def _handle_systemone(backend: Backend | None,
     if backend is None:
         return 200, {
             "answers": {}, "model": None,
-            "sysone_note": "no model backend configured (tier0) — "
-                           "use project_facts or run `sysone init`",
+            "snapdec_note": "no model backend configured (tier0) — "
+                           "use project_facts or run `snapdec init`",
         }
     try:
         req = SystemOneRequest.model_validate(payload)
@@ -71,7 +71,7 @@ def run_daemon(port: int | None = None) -> int:
     try:
         lock.acquire()
     except Exception:
-        print("sysone daemon already running (lock held)", file=sys.stderr)
+        print("snapdec daemon already running (lock held)", file=sys.stderr)
         return 1
 
     cfg = config.Config.load()
@@ -155,7 +155,7 @@ def run_daemon(port: int | None = None) -> int:
             def server_bind(self) -> None:  # bind UDS path, skip host/port parsing
                 ipc._uds_path().unlink(missing_ok=True)
                 self.socket.bind(str(ipc._uds_path()))
-                self.server_name = "sysone"
+                self.server_name = "snapdec"
                 self.server_port = 0
 
         srv = UDSHTTPServer(None, Handler)  # type: ignore[arg-type]

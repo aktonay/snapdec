@@ -1,4 +1,4 @@
-"""MCP shim (`sysone mcp`) — what agents launch (§7).
+"""MCP shim (`snapdec mcp`) — what agents launch (§7).
 
 Rules honored here:
 - ≤ 6 tools, terse descriptions (host agents pay context per turn)
@@ -46,7 +46,7 @@ def _tier1(payload: dict[str, Any]) -> dict[str, Any]:
         raw = ipc.call_systemone(payload)
         if raw.get("error") or raw.get("reason"):
             return failure_envelope(raw.get("reason", "error"),
-                                    raw.get("sysone_note", ""))
+                                    raw.get("snapdec_note", ""))
         answers = raw.get("answers") or {}
         results = []
         for name, a in answers.items():
@@ -173,9 +173,9 @@ def main() -> None:
     except KeyboardInterrupt:
         pass
     finally:
-        sys.stderr.write("sysone mcp: stopped\n")
+        sys.stderr.write("snapdec mcp: stopped\n")
 
 
-# allow `python -m sysone.mcp.server`
+# allow `python -m snapdec.mcp.server`
 if __name__ == "__main__":
     main()

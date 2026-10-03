@@ -2,36 +2,36 @@ from __future__ import annotations
 
 from pathlib import Path
 
-from sysone.integrations.patchers import append_block, json_merge, jsonc_merge, toml_merge
+from snapdec.integrations.patchers import append_block, json_merge, jsonc_merge, toml_merge
 
 
 def test_json_merge_preserves_unknown_keys(tmp_path: Path):
     p = tmp_path / "mcp.json"
     p.write_text('{"mcpServers": {"other": {"command": "x"}}, "version": 5}')
-    out = json_merge(p, {"mcpServers": {"sysone": {"command": "sysone"}}})
+    out = json_merge(p, {"mcpServers": {"snapdec": {"command": "snapdec"}}})
     assert out.wrote
     import json
 
     data = json.loads(p.read_text())
     assert data["mcpServers"]["other"]["command"] == "x"
     assert data["version"] == 5
-    assert data["mcpServers"]["sysone"]["command"] == "sysone"
+    assert data["mcpServers"]["snapdec"]["command"] == "snapdec"
     assert list(data) == ["mcpServers", "version"]  # key order preserved
 
 
 def test_json_merge_idempotent(tmp_path: Path):
     p = tmp_path / "mcp.json"
     p.write_text("{}")
-    json_merge(p, {"mcpServers": {"sysone": {"command": "s"}}})
+    json_merge(p, {"mcpServers": {"snapdec": {"command": "s"}}})
     first = p.read_text()
-    out = json_merge(p, {"mcpServers": {"sysone": {"command": "s"}}})
+    out = json_merge(p, {"mcpServers": {"snapdec": {"command": "s"}}})
     assert not out.wrote and p.read_text() == first
 
 
 def test_json_merge_creates_backup(tmp_path: Path):
     p = tmp_path / "mcp.json"
     p.write_text('{"a": 1}')
-    json_merge(p, {"mcpServers": {"sysone": {}}})
+    json_merge(p, {"mcpServers": {"snapdec": {}}})
     baks = list(tmp_path.glob("mcp.json.bak-*"))
     assert len(baks) == 1 and baks[0].read_text() == '{"a": 1}'
 
@@ -47,7 +47,7 @@ def test_json_malformed_hands_off(tmp_path: Path):
 def test_jsonc_with_comments_never_rewritten(tmp_path: Path):
     p = tmp_path / "opencode.jsonc"
     p.write_text('{\n  // my setup\n  "theme": "dark"\n}\n')
-    out = jsonc_merge(p, {"mcp": {"sysone": {}}})
+    out = jsonc_merge(p, {"mcp": {"snapdec": {}}})
     assert not out.wrote and "comments" in out.snippet
     assert "// my setup" in p.read_text()  # intact
 
@@ -55,27 +55,27 @@ def test_jsonc_with_comments_never_rewritten(tmp_path: Path):
 def test_jsonc_without_comments_writes(tmp_path: Path):
     p = tmp_path / "opencode.json"
     p.write_text('{"theme": "dark"}')
-    out = jsonc_merge(p, {"mcp": {"sysone": {"type": "local"}}})
+    out = jsonc_merge(p, {"mcp": {"snapdec": {"type": "local"}}})
     assert out.wrote
 
 
 def test_toml_merge_preserves_comments(tmp_path: Path):
     p = tmp_path / "config.toml"
     p.write_text('# user comment\nmodel = "gpt"\n\n[mcp_servers.existing]\ncommand = "x"\n')
-    out = toml_merge(p, "mcp_servers.sysone", {"command": "sysone", "args": ["mcp"]})
+    out = toml_merge(p, "mcp_servers.snapdec", {"command": "snapdec", "args": ["mcp"]})
     assert out.wrote
     text = p.read_text()
     assert "# user comment" in text
     assert "command = \"x\"" in text  # existing table intact
-    assert "[mcp_servers.sysone]" in text
+    assert "[mcp_servers.snapdec]" in text
 
 
 def test_toml_idempotent_and_malformed(tmp_path: Path):
     p = tmp_path / "config.toml"
     p.write_text("model = \"gpt\"\n")
-    toml_merge(p, "mcp_servers.sysone", {"command": "sysone"})
+    toml_merge(p, "mcp_servers.snapdec", {"command": "snapdec"})
     before = p.read_text()
-    out = toml_merge(p, "mcp_servers.sysone", {"command": "sysone"})
+    out = toml_merge(p, "mcp_servers.snapdec", {"command": "snapdec"})
     assert not out.wrote and p.read_text() == before
     bad = tmp_path / "bad.toml"
     bad.write_text("= broken [")
@@ -86,8 +86,8 @@ def test_toml_idempotent_and_malformed(tmp_path: Path):
 def test_append_block_roundtrip(tmp_path: Path):
     p = tmp_path / "CLAUDE.md"
     p.write_text("existing content\n")
-    append_block(p, "use sysone", "sysone")
-    assert "sysone:begin" in p.read_text() and "existing content" in p.read_text()
-    append_block(p, "", "sysone")  # empty block = remove
+    append_block(p, "use snapdec", "snapdec")
+    assert "snapdec:begin" in p.read_text() and "existing content" in p.read_text()
+    append_block(p, "", "snapdec")  # empty block = remove
     text = p.read_text()
-    assert "sysone:begin" not in text and "existing content" in text
+    assert "snapdec:begin" not in text and "existing content" in text
