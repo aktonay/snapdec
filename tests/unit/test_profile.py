@@ -19,7 +19,10 @@ def test_cpu_when_no_gpu():
     assert select_profile(rep(os="Linux")).id == "cpu"
 
 
-def test_windows_gpu_gets_dml_profile():
+def test_windows_gpu_gets_dml_profile(monkeypatch):
+    import snapdec.hardware.profile as profile_mod
+
+    monkeypatch.setattr(profile_mod, "sys_platform", lambda: "win32")
     r = rep(gpus=[GPU(name="Intel(R) UHD Graphics", vendor="intel")])
     assert select_profile(r).id == "windows-gpu"
 
