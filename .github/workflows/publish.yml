@@ -6,15 +6,17 @@ on:
 
 jobs:
   pypi:
-    runs-on: ubuntu-latest
-    environment: pypi  # requires PYPI trusted-publisher setup (repo Settings → Environments)
+    runs-on: ubuntu-24.04
+    environment: pypi  # requires PyPI trusted-publisher setup (repo Settings → Environments)
     permissions:
       id-token: write  # OIDC for PyPI Trusted Publishing
     steps:
       - uses: actions/checkout@v4
       - uses: astral-sh/setup-uv@v5
-        with: { python-version: "3.12" }
-      - run: uv python install 3.10 3.11 3.12 3.13 && uv venv && uv pip install -e ".[dev]"
+        with:
+          python-version: "3.12"
+          enable-cache: false
+      - run: uv pip install -e ".[dev]"   # setup-uv provides the venv
       - run: uv run ruff check src tests
       - run: uv run pytest -q
       - run: uv build
