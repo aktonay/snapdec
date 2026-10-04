@@ -201,7 +201,7 @@ def run_daemon(port: int | None = None) -> int:
     # transport: UDS when usable, else loopback TCP with port fallback
     srv = _bind_uds(Handler) if ipc.use_uds() else None
     if srv is not None:
-        ipc.write_state(pid=os.getpid(), port=None, token=token)
+        ipc.write_state(pid=os.getpid(), port=None, token=token, transport="uds")
         log.info("daemon up: backend=%s transport=uds", cfg.backend)
     else:
         srv, use_port = _bind_tcp(Handler, port)
@@ -210,7 +210,7 @@ def run_daemon(port: int | None = None) -> int:
                   file=sys.stderr)
             lock.release()
             return 1
-        ipc.write_state(pid=os.getpid(), port=use_port, token=token)
+        ipc.write_state(pid=os.getpid(), port=use_port, token=token, transport="tcp")
         log.info("daemon up: backend=%s transport=tcp:%s", cfg.backend, use_port)
 
     try:

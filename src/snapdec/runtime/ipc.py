@@ -41,12 +41,16 @@ def use_uds() -> bool:
     return sys.platform != "win32"
 
 
-def write_state(*, pid: int, port: int | None, token: str) -> dict[str, Any]:
+def write_state(*, pid: int, port: int | None, token: str,
+                transport: str | None = None) -> dict[str, Any]:
+    """Record daemon reachability. `transport` overrides the platform default —
+    the daemon may fall back to TCP when the UDS path is unusable (too long)."""
+    tr = transport or ("uds" if use_uds() else "tcp")
     st = {
         "pid": pid,
-        "transport": "uds" if use_uds() else "tcp",
-        "socket": str(_uds_path()) if use_uds() else None,
-        "port": port if not use_uds() else None,
+        "transport": tr,
+        "socket": str(_uds_path()) if tr == "uds" else None,
+        "port": port if tr == "tcp" else None,
         "token": token,
         "version": __version__,
     }
