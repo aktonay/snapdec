@@ -37,6 +37,13 @@ dependencies = [
   "filelock>=3.13",
 ]
 
+[project.urls]
+Homepage = "https://github.com/aktonay/snapdec"
+Documentation = "https://github.com/aktonay/snapdec#readme"
+Repository = "https://github.com/aktonay/snapdec"
+Changelog = "https://github.com/aktonay/snapdec/blob/main/CHANGELOG.md"
+"Bug Tracker" = "https://github.com/aktonay/snapdec/issues"
+
 [project.optional-dependencies]
 dev = [
   "pytest>=8",

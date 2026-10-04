@@ -16,6 +16,10 @@
   <a href="https://github.com/aktonay/snapdec"><img src="https://img.shields.io/badge/Platform-macOS%20%7C%20Linux%20%7C%20Windows-lightgrey" alt="Platforms"></a>
 </p>
 
+<p align="center">
+  <img src="https://raw.githubusercontent.com/aktonay/snapdec/main/assets/snapdec-banner.jpg" alt="snapdec - Fast Micro-Decisions for Coding Agents | MCP Server" width="100%">
+</p>
+
 ---
 
 ## 📌 What is snapdec?
@@ -140,7 +144,7 @@ Every response returned to the agent includes calibrated metadata and a discreet
     "auto": 1,
     "review": 1
   },
-  "status": "· snapdec 0.4.1 · kev-0.8b · 38 ms · 1/2 auto · ~210 tok offloaded"
+  "status": "· snapdec 0.4.2 · kev-0.8b · 38 ms · 1/2 auto · ~210 tok offloaded"
 }
 ```
 

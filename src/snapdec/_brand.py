@@ -4,5 +4,5 @@ A rename must be a single commit: this constant + pyproject.toml.
 Do not hardcode the name anywhere else.
 """
 
-__version__ = "0.4.1"
+__version__ = "0.4.2"
 NAME = "snapdec"  # final — rename gate cleared 2026-10-03, see docs/adr/0007
