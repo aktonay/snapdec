@@ -57,10 +57,26 @@ async def test_tier1_with_mock_daemon(tmp_home):
 
     config.Config(backend="mock").save()
     ok = start_daemon(wait_seconds=20)  # cold macOS runners can be slow to spawn
-    if not ok:  # surface the daemon's own output — the assertion alone says nothing
+    if not ok:  # surface daemon output + a direct probe — the assert alone says nothing
+        from snapdec.runtime import ipc
+        from snapdec.runtime.lifecycle import daemon_status
+
+        print("status:", daemon_status())
+        print("state:", ipc.read_state())
         for f in sorted(config.logs_dir().glob("*")):
             print(f"--- {f.name} ---")
             print(f.read_text(errors="replace")[:2000])
+        st = ipc.read_state() or {}
+        if st.get("port"):
+            import httpx
+
+            try:
+                with httpx.Client(base_url=f"http://127.0.0.1:{st['port']}",
+                                  timeout=5.0) as c:
+                    r = c.get("/healthz")
+                    print(f"direct probe: {r.status_code} {r.text[:200]}")
+            except Exception as e:  # noqa: BLE001 — diagnostics only
+                print(f"direct probe failed: {type(e).__name__}: {e}")
     assert ok
     try:
         async with Client(build_server()) as client:
