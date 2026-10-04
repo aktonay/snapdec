@@ -15,6 +15,6 @@ jobs:
       - uses: actions/checkout@v4
       - uses: astral-sh/setup-uv@v5
         with: { python-version: "${{ matrix.python }}" }
-      - run: uv venv && uv pip install -e ".[dev]"
+      - run: uv pip install -e ".[dev]"   # setup-uv provides the venv
       - run: uv run ruff check src tests
       - run: uv run pytest -q
