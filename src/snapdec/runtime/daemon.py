@@ -94,13 +94,27 @@ def _bind_uds(handler: Any) -> Any:
 
 
 def _bind_tcp(handler: Any, port: int | None) -> tuple[Any, int | None]:
-    """Loopback TCP with port fallback (concurrent dev instances)."""
+    """Loopback TCP with port fallback (concurrent dev instances).
+
+    HTTPServer.server_bind calls socket.getfqdn(host) — reverse DNS that can
+    hang for minutes on hosts with no resolver answer (macOS CI runners),
+    leaving the daemon bound-but-stuck with no error. We bind the socket
+    directly and skip the fqdn lookup: we serve on a literal IP.
+    """
+    import socketserver
+
+    class LoopbackHTTPServer(ThreadingHTTPServer):
+        def server_bind(self) -> None:
+            socketserver.TCPServer.server_bind(self)
+            self.server_name = "127.0.0.1"          # skip getfqdn (DNS hang)
+            self.server_port = self.server_address[1]
+
     for cand in [port or ipc.DEFAULT_PORT] + \
             [(ipc.DEFAULT_PORT + i) for i in range(1, 11)]:
         if cand != (port or ipc.DEFAULT_PORT) and not ipc.check_port_free(cand):
             continue
         try:
-            return ThreadingHTTPServer(("127.0.0.1", cand), handler), cand
+            return LoopbackHTTPServer(("127.0.0.1", cand), handler), cand
         except OSError:
             continue
     return None, None
