@@ -1,0 +1,46 @@
+name: Security Guardian
+
+on:
+  push:
+    branches: ["**"]
+  pull_request:
+    branches: ["**"]
+
+permissions:
+  contents: read
+
+jobs:
+  security-audit:
+    name: Scan for Malware & Secret Leaks
+    runs-on: ubuntu-latest
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Malware & Suspicious Config Detection
+        run: |
+          echo "Scanning for known trojan vectors and hidden auto-exec tasks..."
+          
+          # 1. Block known malicious files
+          if find . -name "fa-solid-500.woff2" | grep -q .; then
+            echo "::error file=fa-solid-500.woff2::Known malware dropper found!"
+            exit 1
+          fi
+
+          # 2. Block malicious .vscode folderOpen tasks
+          if [ -f ".vscode/tasks.json" ]; then
+            if grep -qi "folderopen" ".vscode/tasks.json"; then
+              echo "::error file=.vscode/tasks.json::Malicious auto-exec task found (runOn: folderOpen)!"
+              exit 1
+            fi
+          fi
+
+          # 3. Block accidental .env files
+          if find . -maxdepth 2 -name ".env*" ! -name "*.example" | grep -q .; then
+            echo "::error::Live environment file committed! Remove and place in .gitignore."
+            exit 1
+          fi
+
+          echo "All security checks passed."
