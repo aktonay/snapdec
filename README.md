@@ -140,7 +140,7 @@ Every response returned to the agent includes calibrated metadata and a discreet
     "auto": 1,
     "review": 1
   },
-  "status": "· snapdec 0.4.0 · kev-0.8b · 38 ms · 1/2 auto · ~210 tok offloaded"
+  "status": "· snapdec 0.4.1 · kev-0.8b · 38 ms · 1/2 auto · ~210 tok offloaded"
 }
 ```
 

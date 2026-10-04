@@ -3,6 +3,14 @@
 All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
+## [0.4.1] — 2026-10-04
+
+### Changed
+- Shared `add_status` helper across MCP server and CLI commands so both
+  consistently output the status footer line.
+- Comprehensive overhaul of `README.md`: visual badges, architecture flow,
+  full agent integration guides, and search optimization.
+
 ## [0.4.0] — 2026-10-04
 
 ### Added
