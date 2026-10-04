@@ -3,6 +3,19 @@
 All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
+## [0.4.0] — 2026-10-04
+
+### Added
+- `snapdec update`: checks PyPI and upgrades the installation (uv tool →
+  pip → pipx). `init` and `doctor` print a one-line update notice
+  automatically (cached 24 h; a public-metadata read, no user data —
+  ADR-0009). Act is always explicit; nothing auto-installs silently.
+- Status footer on every Tier-1 answer: `· snapdec 0.4.0 · model · ms ·
+  auto/total · ~N tok offloaded` — visible in the agent transcript after
+  each tool call, quiet single field, informational only.
+- The MCP shim already lazy-starts the daemon on first tool call and
+  resurrects a dead managed backend (unchanged, now documented).
+
 ## [0.3.1] — 2026-10-04
 
 ### Fixed

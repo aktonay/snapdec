@@ -14,7 +14,7 @@ import sys
 import time
 from typing import Any
 
-from .._brand import NAME
+from .._brand import NAME, __version__
 from ..decisions import policy as decision_policy
 from ..decisions.envelope import failure_envelope, make_envelope
 from ..decisions.tier0 import project_facts as _project_facts
@@ -30,6 +30,28 @@ def _backend_info() -> dict[str, Any]:
         return {"name": "daemon", "transport": st.get("transport"), "ready": True}
     except Exception:
         return {"name": "daemon", "ready": False}
+
+
+def _model_label() -> str:
+    try:
+        from .. import config as _cfg
+
+        cfg = _cfg.Config.load()
+        return cfg.model or cfg.backend or "default"
+    except Exception:
+        return "default"
+
+
+def _add_status(env: dict[str, Any], state_chars: int) -> dict[str, Any]:
+    """One quiet footer line after every Tier-1 answer: what ran, how fast,
+    how much text stayed off the host model. Rendered by the agent as part
+    of the tool result — informational, never parsed."""
+    s = env.get("summary") or {}
+    env["status"] = (f"· snapdec {__version__} · {_model_label()} · "
+                     f"{(env.get('backend') or {}).get('latency_ms', '?')} ms · "
+                     f"{s.get('auto', 0)}/{s.get('items', 0)} auto · "
+                     f"~{state_chars // 4} tok offloaded")
+    return env
 
 
 _daemon_started = False
@@ -71,7 +93,8 @@ def _tier1(payload: dict[str, Any]) -> dict[str, Any]:
         latency = round((time.perf_counter() - started) * 1000, 1)
         info = _backend_info()
         info["latency_ms"] = latency
-        return make_envelope(results, backend=info)
+        env = make_envelope(results, backend=info)
+        return _add_status(env, len(str(payload.get("state", ""))))
     except ConnectionError as e:
         return failure_envelope("no_backend", str(e))
     except Exception as e:  # noqa: BLE001 — never raise into the host agent
@@ -94,7 +117,8 @@ def _tier1_many(payloads: list[dict[str, Any]]) -> dict[str, Any]:
         return envs[0]  # preserve the failure envelope shape
     info = _backend_info()
     info["latency_ms"] = round((time.perf_counter() - t0) * 1000, 1)
-    return make_envelope(results, backend=info)
+    chars = sum(len(str(p.get("state", ""))) for p in payloads)
+    return _add_status(make_envelope(results, backend=info), chars)
 
 
 def build_server() -> Any:

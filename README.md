@@ -119,6 +119,7 @@ snapdec init                 # the wizard (above)
 snapdec init --yes --api-key sk-or-…      # non-interactive, provider auto-detected
 snapdec init --yes --backend local        # non-interactive managed local setup
 snapdec doctor --live        # verify install, daemon, every agent registration
+snapdec update               # upgrade when PyPI has a newer version
 snapdec daemon start|stop|status|logs
 snapdec agents list|add|remove|print-snippet   # integrations, all reversible
 snapdec models [--all]       # hardware-gated catalog, honest stats
@@ -127,6 +128,19 @@ snapdec classify|check|score|rank --input -   # CLI mirrors of the tools
 snapdec project-facts .      # tier-0 facts straight from the terminal
 snapdec uninstall            # reverses every integration exactly
 ```
+
+Every answer ends with a quiet status footer (what ran, latency, how much
+text stayed off the host model):
+
+```
+· snapdec 0.4.0 · jaredpalmer/kev-0.8b · 38 ms · 7/12 auto · ~210 tok offloaded
+```
+
+Upgrades: `init`/`doctor` print a notice when PyPI has something newer
+(cached 24 h); `snapdec update` upgrades (uv tool → pip → pipx) and asks
+you to re-run `init` once to refresh the skill copy. Nothing installs
+silently. The daemon is lazy — first tool call starts it, dead managed
+backends resurrect on their own; no background services.
 
 ## Architecture (30 seconds)
 

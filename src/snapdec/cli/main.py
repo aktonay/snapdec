@@ -310,6 +310,13 @@ def init(
 
     _uvx_guard()  # ephemeral-run guard (§5.3): persist + re-exec if uvx-cached
     out.rule(f"[bold]{NAME} init[/bold] · v{__version__}")
+    try:
+        from ..runtime.update import update_notice
+
+        if (n := update_notice()):
+            err.print(f"[yellow]update available:[/yellow] {n}")
+    except Exception:
+        pass
     _print_hardware()
 
     cfg = config.Config.load()
@@ -492,6 +499,13 @@ def doctor(live: bool = typer.Option(False, "--live"),
     checks.append((bool(select_profile(rep).id), f"profile: {select_profile(rep).id}"))
     checks.append((bool(cfg.backend), f"backend: {cfg.backend} "
                   + (f"-> {cfg.remote_url}" if cfg.remote_url else "")))
+    try:  # cached 24 h — a plain public-metadata read, no user data (ADR-0009)
+        from ..runtime.update import update_notice
+
+        if (n := update_notice()):
+            checks.append((True, f"version: {n}"))
+    except Exception:
+        pass
     st = daemon_status()
     checks.append((st.get("healthy", False),
                    f"daemon: healthy={st.get('healthy')} pid={st.get('pid')}"))
@@ -745,6 +759,28 @@ def bench(
     t.add_row("latency p50/p95 ms",
               f"{res['latency_p50_ms']} / {res['latency_p95_ms']}")
     out.print(t)
+
+
+# ================================================================ update
+
+
+@app.command()
+def update(yes: bool = typer.Option(False, "--yes")) -> None:
+    """Check PyPI and upgrade this installation (uv tool → pip → pipx)."""
+    from ..runtime.update import self_update, update_notice
+
+    notice = update_notice(force=True)
+    if not notice:
+        out.print(f"snapdec {__version__} — already the latest version")
+        return
+    out.print(notice)
+    if not yes and not typer.confirm("  upgrade now?", default=True):
+        return
+    ok, detail = self_update()
+    out.print(f"{'[ok]' if ok else '[FAIL]'} {detail}")
+    if ok:
+        out.print("  re-run [bold]snapdec init[/bold] to refresh the agent skill copy")
+    raise typer.Exit(0 if ok else 1)
 
 
 # ================================================================ misc

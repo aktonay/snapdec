@@ -91,6 +91,9 @@ async def test_tier1_with_mock_daemon(tmp_home):
                 assert r["decision"] in ("auto", "review")
                 assert abs(sum(r["probabilities"].values()) - 1.0) < 1e-6
             assert payload["summary"]["items"] == 2
+            # status footer: model · latency · auto mix · offload estimate
+            st = payload["status"]
+            assert "snapdec" in st and "ms" in st and "offloaded" in st
     finally:
         stop_daemon()
 
