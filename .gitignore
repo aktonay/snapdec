@@ -3,8 +3,11 @@ __pycache__/
 *.pyc
 *.egg-info/
 dist/
+temp_auto_push.bat
 build/
 .pytest_cache/
 .ruff_cache/
 .state/
 *.bak-*
+.gitignore
+branch_structure.json
