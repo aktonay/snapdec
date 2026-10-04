@@ -3,6 +3,19 @@
 All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
+## [0.3.1] — 2026-10-04
+
+### Fixed
+- Daemon could be unreachable on macOS: when the UDS socket path exceeded
+  the 104-byte `sun_path` limit the daemon fell back to loopback TCP, but
+  the state file still advertised the (never-bound) UDS path — clients
+  pinged a socket that didn't exist. State now records the actual
+  transport.
+- TCP bind skipped `socket.getfqdn` — reverse DNS could hang for minutes
+  on hosts whose resolver never answers, stalling the daemon before it
+  served a single request.
+- CI matrix green on all 3 OS × 3 Pythons (first fully green run).
+
 ## [0.3.0] — 2026-10-04
 
 ### Added
