@@ -56,7 +56,12 @@ async def test_tier1_with_mock_daemon(tmp_home):
     from snapdec.runtime.lifecycle import start_daemon, stop_daemon
 
     config.Config(backend="mock").save()
-    assert start_daemon()
+    ok = start_daemon(wait_seconds=20)  # cold macOS runners can be slow to spawn
+    if not ok:  # surface the daemon's own output — the assertion alone says nothing
+        for f in sorted(config.logs_dir().glob("*")):
+            print(f"--- {f.name} ---")
+            print(f.read_text(errors="replace")[:2000])
+    assert ok
     try:
         async with Client(build_server()) as client:
             res = await client.call_tool("classify", {
