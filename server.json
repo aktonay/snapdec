@@ -1,4 +1,5 @@
 {
+  "$schema": "https://raw.githubusercontent.com/modelcontextprotocol/registry/main/schema/draft/v0.1/schema.json",
   "name": "io.github.aktonay/snapdec",
   "description": "Snap decisions for coding agents: local or hosted classify/check/score/rank via MCP.",
   "version": "0.3.0",
