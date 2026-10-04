@@ -17,6 +17,12 @@ Per item: `label`, `probability`, `margin`, `probabilities`, `decision`.
 ## rank(query, candidates, top_k?)
 `candidates: [{id, text}]`. Sorted `results`, `any_relevant`.
 
+## ask(state, questions)
+Raw System One passthrough. `questions: {name: {type: choice|noul|score,
+instructions, criteria?}}` — mixed types in one call. Prefer the typed
+tools above; `ask` is for cases they don't cover (custom question shapes,
+several different questions about one state).
+
 ## Envelope
 ```
 {results:[…], summary:{items,auto,review}, policy:{auto_accept,min_margin},

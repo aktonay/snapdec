@@ -1,13 +1,25 @@
 from __future__ import annotations
 
-from snapdec.backends.keydetect import detect_provider, pick_model, provider_by_id
+from snapdec.backends.keydetect import (
+    _OPENROUTER,
+    detect_provider,
+    pick_model,
+    provider_by_id,
+)
 
 
 def test_openrouter_prefix():
     g = detect_provider("sk-or-v1-abc123")
     assert g.provider == "openrouter"
     assert g.url == "https://openrouter.ai/api/v1"
-    assert g.default_models[0].endswith(":free")  # free-first judgement
+    assert g.default_models == ("typesafe/jev-router",)  # only live id (2026-10-04)
+
+
+def test_openrouter_chain_has_no_dead_ids():
+    # kev-* ids were delisted from OpenRouter; guard against regression.
+    for mid in _OPENROUTER.default_models:
+        assert mid.startswith("typesafe/"), mid
+        assert "jaredpalmer/" not in mid, mid
 
 
 def test_typesafe_prefix():

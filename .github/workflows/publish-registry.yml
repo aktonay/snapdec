@@ -1,0 +1,35 @@
+name: publish-registry
+on:
+  release:
+    types: [published]  # after PyPI trusted-publish has the new version
+  workflow_dispatch:
+
+jobs:
+  registry:
+    runs-on: ubuntu-24.04
+    permissions:
+      id-token: write  # OIDC — namespace io.github.aktonay/* provenance
+      contents: read
+    steps:
+      - uses: actions/checkout@v4
+      - uses: astral-sh/setup-uv@v5
+        with:
+          python-version: "3.12"
+          enable-cache: false
+      - name: Validate server.json against the shipped version
+        run: |
+          uv pip install pytest
+          uv run pytest tests/unit/test_server_json.py -q
+      - name: Wait for the PyPI version to be visible (registry verifies packages)
+        run: |
+          for i in $(seq 1 12); do
+            curl -sf "https://pypi.org/pypi/snapdec/$(jq -r .version server.json)/json" && break
+            sleep 30
+          done
+      - name: Install mcp-publisher
+        run: |
+          curl -L "https://github.com/modelcontextprotocol/registry/releases/latest/download/mcp-publisher_$(uname -s | tr '[:upper:]' '[:lower:]')_$(uname -m | sed 's/x86_64/amd64/;s/aarch64/arm64/').tar.gz" | tar xz mcp-publisher
+      - name: Authenticate to MCP Registry
+        run: ./mcp-publisher login github-oidc
+      - name: Publish server to MCP Registry
+        run: ./mcp-publisher publish

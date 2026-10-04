@@ -1,7 +1,7 @@
 """snapdec CLI — Typer + Rich (§9).
 
 Commands: init | mcp | daemon | doctor | agents | project-facts |
-classify/check/score/rank | models (stub) | backend | uninstall | version
+classify/check/score/rank | bench | models | backend | uninstall | version
 """
 
 from __future__ import annotations
@@ -107,11 +107,9 @@ def _auto_local(cfg: config.Config) -> None:
         out.print("  [yellow]no local /v1/systemone server running[/yellow]")
         out.print("  start one (pick any):")
         out.print("    uv run --with 'laya[serve]' laya-serve        # smallest, CPU")
-        out.print("    uv run --extra serve python -m kev.serve --run jaredpalmer/kev-0.8b")
-        out.print("  then re-run [bold]" + NAME + " init[/bold] — it will be found "
-                  "automatically.")
-        out.print("  (Phase 2 will install+launch these for you; today: fallback "
-                  "to Tier-0)")
+        out.print("    python -m kev.serve --run jaredpalmer/kev-0.8b --port 8902")
+        out.print("  or pick a managed local option in the menu — snapdec downloads")
+        out.print("  and launches it for you. Re-run [bold]" + NAME + " init[/bold].")
         cfg.backend = "tier0"
         return
     f = found[0]
@@ -139,6 +137,8 @@ def _select_backend(opts: dict[str, Any], api_key: str | None = None) -> config.
         "laya-multilingual": ("laya", "multilingual"),
         "kev-0.8b": ("kev", "jaredpalmer/kev-0.8b"),
         "kev-4b": ("kev", "jaredpalmer/kev-4b"),
+        "kev-9b": ("kev", "jaredpalmer/kev-9b"),
+        "kev-27b": ("kev", "jaredpalmer/kev-27b"),
     }
 
     out.print("\n[bold]Recommended for this machine[/bold] "
@@ -148,7 +148,9 @@ def _select_backend(opts: dict[str, Any], api_key: str | None = None) -> config.
     numbers: dict[int, tuple[str, str]] = {}
     for m in models:
         star = "   [bold](recommended)[/bold]" if prof.id in m.recommended_for else ""
+        # slow_on_cpu never applies on Apple Silicon — MLX is the fast path there
         slow = "   [yellow]slow on CPU[/yellow]" if m.slow_on_cpu and \
+            not rep.apple_silicon and \
             not any(g.vendor == "nvidia" for g in rep.gpus) else ""
         out.print(f"    [{n}] {m.label} ({m.params})  —  {m.di}")
         out.print(f"        {m.latency} · setup: {m.setup}{star}{slow}")
@@ -175,7 +177,7 @@ def _select_backend(opts: dict[str, Any], api_key: str | None = None) -> config.
     if key_sel in mapping:
         kind, model = mapping[key_sel]
         ok = True if opts.get("yes") else typer.confirm(
-            f"    Local setup downloads {setup_size_note(kind)} once. Continue?",
+            f"    Local setup downloads {setup_size_note(kind, model)} once. Continue?",
             default=True)
         if not ok:
             cfg.backend = "tier0"
@@ -192,6 +194,11 @@ def _select_backend(opts: dict[str, Any], api_key: str | None = None) -> config.
                 out.print("  falling back to Tier-0; fix the issue and re-run init")
                 cfg.backend = "tier0"
                 return cfg
+            if kind == "kev":
+                # adopt the wire id the server advertises (may be `kev-latest`)
+                am = provision.advertised_model("kev")
+                if am:
+                    model = am
             out.print(f"  [green]local ready[/green]: {detail}")
         from ..runtime.provision import KEV_PORT, LAYA_PORT
 
@@ -299,6 +306,9 @@ def init(
     agents: str | None = typer.Option(None, "--agents", help="comma list, or 'all'"),
 ) -> None:
     """First-run wizard: hardware -> backend -> agents wired -> live check."""
+    from ..runtime.uvx_guard import guard as _uvx_guard
+
+    _uvx_guard()  # ephemeral-run guard (§5.3): persist + re-exec if uvx-cached
     out.rule(f"[bold]{NAME} init[/bold] · v{__version__}")
     _print_hardware()
 
@@ -320,7 +330,7 @@ def init(
             from ..runtime.provision import KEV_PORT, LAYA_PORT
 
             kind = "kev" if model and "kev" in model else "laya"
-            m = model or "english"
+            m = model or ("jaredpalmer/kev-0.8b" if kind == "kev" else "english")
             if kind == "kev" and "/" not in m:
                 m = f"jaredpalmer/{m}"
             port = LAYA_PORT if kind == "laya" else KEV_PORT
@@ -331,6 +341,10 @@ def init(
                 if not ok:
                     err.print(f"[red]local setup failed:[/red] {detail}")
                     raise typer.Exit(1)
+                if kind == "kev":
+                    am = provision.advertised_model("kev")
+                    if am:
+                        m = am
                 out.print(f"  [green]local ready[/green]: {detail}")
             cfg.backend, cfg.backend_label = "remote", "local-managed"
             cfg.remote_url = f"http://127.0.0.1:{port}"
@@ -693,6 +707,46 @@ def rank(query: str | None = None, input: str | None = None,
     out.print_json(json.dumps(env))
 
 
+# ================================================================ bench
+
+
+@app.command()
+def bench(
+    json_out: bool = typer.Option(False, "--json"),
+    backend: str = typer.Option("active", "--backend", help="active | mock"),
+) -> None:
+    """Fixed mini-suite (accuracy/Brier/latency) — commits belong in docs/benchmarks/."""
+    from ..backends.mock import MockBackend
+    from ..bench import run_bench
+    from ..runtime.daemon import build_backend
+
+    if backend == "mock":
+        be = MockBackend()
+    else:
+        be = build_backend(config.Config.load())
+        if be is None:
+            err.print("no model backend configured — run `snapdec init` "
+                      "(or use --backend mock)")
+            raise typer.Exit(2)
+    res = run_bench(be)
+    if json_out:
+        out.print_json(json.dumps(res))
+        return
+    out.print(f"suite {res['suite']} · backend {res['backend']['name']} "
+              f"({res['backend']['model']}) · {res['items']} items · "
+              f"{res['latency_note']}")
+    t = Table(box=None)
+    t.add_column("metric")
+    t.add_column("value")
+    for k in ("classify_accuracy", "check_accuracy", "check_brier", "score_exact"):
+        t.add_row(k, str(res[k]))
+    t.add_row("decision auto/review",
+              f"{res['decision_mix']['auto']}/{res['decision_mix']['review']}")
+    t.add_row("latency p50/p95 ms",
+              f"{res['latency_p50_ms']} / {res['latency_p95_ms']}")
+    out.print(t)
+
+
 # ================================================================ misc
 
 
@@ -717,10 +771,32 @@ def backend_set(backend: str | None = typer.Option(None),
 
 
 @app.command()
-def models() -> None:
+def models(all: bool = typer.Option(False, "--all",
+                                     help="also show models this machine can't run")) -> None:
+    """Hardware-gated catalog with honest stats; only what fits is runnable."""
+    from ..hardware.catalog import CATALOG, HOSTED_STATS, fits
+
+    rep = hw_detect()
+    prof = select_profile(rep)
+    t = Table(title=f"Models for this machine ({prof.id} · {prof.label})", box=None)
+    t.add_column("")
+    t.add_column("model")
+    t.add_column("params")
+    t.add_column("stats")
+    t.add_column("runs here")
+    for m in CATALOG:
+        ok = fits(m, rep)
+        if not ok and not all:
+            continue
+        star = "(*)" if prof.id in m.recommended_for else ""
+        t.add_row(star, m.label, m.params, f"{m.di} · {m.latency}",
+                  "yes" if ok else "[dim]no[/dim]")
+    out.print(t)
+    for label, stats in HOSTED_STATS:
+        out.print(f"  hosted · {label}  —  {stats}")
     cfg = config.Config.load()
-    out.print(f"configured backend: {cfg.backend} model: {cfg.model or '(default)'}")
-    out.print("managed local model downloads arrive in Phase 2 (see SYSONE_ARCHITECTURE.md §15)")
+    out.print(f"\nactive: {cfg.backend_label or cfg.backend} · "
+              f"{cfg.model or '(default)'} — run [bold]{NAME} init[/bold] to change")
 
 
 @app.command()

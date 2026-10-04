@@ -1,0 +1,16 @@
+{
+  "name": "io.github.aktonay/snapdec",
+  "description": "Snap decisions for coding agents: local or hosted classify/check/score/rank via MCP.",
+  "version": "0.3.0",
+  "packages": [
+    {
+      "registryType": "pypi",
+      "identifier": "snapdec",
+      "version": "0.3.0",
+      "runtimeHint": "uvx",
+      "transport": {
+        "type": "stdio"
+      }
+    }
+  ]
+}

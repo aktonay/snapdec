@@ -3,8 +3,9 @@
 Supports two families, chosen freely by the user (stats shown in init):
 - Laya (`laya[serve]` from PyPI, port 8901) — tiny encoder, fast, weak
   zero-shot (specialize-first).
-- Kev (pinned git tarball — NOT on PyPI — port 8902) — better zero-shot
-  Decision Index; fast only on CUDA, seconds/question on CPU.
+- Kev (pinned git tarball — NOT on PyPI — port 8902) — best local zero-shot
+  Decision Index (0.8B/4B/9B/27B since Kev 1.0); fast on CUDA and on Apple
+  Silicon via MLX, seconds/question elsewhere on CPU.
 
 Both are bound to 127.0.0.1 only (laya's upstream default 0.0.0.0 is
 refused), weights auto-download from Hugging Face on first preload
@@ -28,7 +29,7 @@ from .. import config
 
 LAYA_PORT = 8901
 KEV_PORT = 8902
-KEV_PIN_SHA = "84847f0a883d900f7de5b7a57eaa341ca7f9a6b4"  # jaredpalmer/kev, 2026-10-03
+KEV_PIN_SHA = "fe64b1274ea7f80d4095866df90666abb03e9cf6"  # jaredpalmer/kev 1.0, 2026-10-03
 KEV_TARBALL = f"https://github.com/jaredpalmer/kev/archive/{KEV_PIN_SHA}.tar.gz"
 
 
@@ -50,9 +51,18 @@ def _uv() -> str | None:
     return shutil.which("uv")
 
 
-def setup_size_note(kind: str) -> str:
-    return {"laya": "about 2 GB (torch + transformers + Laya weights)",
-            "kev": "about 3 GB (torch + fla + Kev-0.8B weights)"}[kind]
+KEV_SETUP_SIZES = {
+    "jaredpalmer/kev-0.8b": "about 5 GB (torch + transformers + Kev-0.8B weights)",
+    "jaredpalmer/kev-4b": "about 12 GB (weights + torch)",
+    "jaredpalmer/kev-9b": "about 22 GB (weights + torch)",
+    "jaredpalmer/kev-27b": "about 60 GB+ (weights dominate)",
+}
+
+
+def setup_size_note(kind: str, model: str = "") -> str:
+    if kind == "laya":
+        return "about 2 GB (torch + transformers + Laya weights)"
+    return KEV_SETUP_SIZES.get(model, KEV_SETUP_SIZES["jaredpalmer/kev-0.8b"])
 
 
 def ensure_venv() -> Path:
@@ -78,6 +88,13 @@ def _pip_install(py: Path, *specs: str) -> None:
         raise RuntimeError(f"install failed ({specs[0]}): {(r.stderr or r.stdout)[-500:]}")
 
 
+def _python_ok_for_kev(py: Path) -> bool:
+    """kev 1.0 requires Python 3.12/3.13 in the runtime venv."""
+    q = subprocess.run([str(py), "-c", "import sys;print(sys.version_info[:2])"],
+                       capture_output=True, text=True, timeout=60)
+    return q.stdout.strip() in ("(3, 12)", "(3, 13)")
+
+
 def install_backend(py: Path, kind: str) -> str:
     if kind == "laya":
         _pip_install(py, "laya[serve]")
@@ -85,7 +102,13 @@ def install_backend(py: Path, kind: str) -> str:
                            capture_output=True, text=True, timeout=60)
         return q.stdout.strip() or "unknown"
     if kind == "kev":
-        _pip_install(py, f"kev @ {KEV_TARBALL}", "fastapi", "uvicorn")
+        if not _python_ok_for_kev(py):
+            raise RuntimeError(
+                "kev 1.0 needs Python 3.12/3.13 in the runtime venv — install "
+                "uv (https://astral.sh/uv) and re-run `snapdec init` so the "
+                "venv can be created with 3.12")
+        # [serve] brings fastapi/uvicorn/typesafe-sdk (+ mlx-lm on Apple Silicon)
+        _pip_install(py, f"kev[serve] @ {KEV_TARBALL}")
         q = subprocess.run([str(py), "-c", "import kev;print(getattr(kev,'__version__','git'))"],
                            capture_output=True, text=True, timeout=60)
         return f"{q.stdout.strip() or 'git'}@{KEV_PIN_SHA[:8]}"
@@ -195,6 +218,28 @@ def wait_healthy(kind: str, timeout: float = 600.0,
         if on_wait and waited % 10 == 0:
             on_wait(waited)
     return False
+
+
+def advertised_model(kind: str) -> str:
+    """First model id the managed server advertises ('' if unreachable).
+
+    kev.serve may advertise a wire id like `kev-latest` rather than the HF
+    repo id we passed to --run; adopting the advertised id avoids guessing
+    what the /v1/systemone `model` field should be (§4.5).
+    """
+    for path in ("/v1/models", "/models"):
+        try:
+            with httpx.Client(timeout=2.0) as c:
+                r = c.get(f"http://127.0.0.1:{_port(kind)}{path}")
+            if r.status_code == 200:
+                data = r.json()
+                ids = [m.get("id") for m in data.get("data", data.get("models", []))]
+                ids = [i for i in ids if i]
+                if ids:
+                    return str(ids[0])
+        except (httpx.HTTPError, ValueError):
+            continue
+    return ""
 
 
 def provision(kind: str, model: str, *, consent: bool = False,

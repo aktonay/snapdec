@@ -1,9 +1,9 @@
 """Auto-detect the provider from a pasted API key (§9.1 'all auto').
 
 Only System One-compatible endpoints are usable by the remote backend.
-OpenRouter is the universal bridge (hosts Jev/Kev models); OpenAI/Groq/
-Anthropic keys do NOT speak /v1/systemone and are reported as such with
-a hint instead of being silently misrouted.
+OpenRouter is the universal bridge (serves typesafe/jev-router); OpenAI/
+Groq/Anthropic keys do NOT speak /v1/systemone and are reported as such
+with a hint instead of being silently misrouted.
 """
 
 from __future__ import annotations
@@ -21,9 +21,10 @@ class ProviderGuess:
 
 _OPENROUTER = ProviderGuess(
     "openrouter", "https://openrouter.ai/api/v1",
-    # free variants first — "paid or free judgement": try :free, fall back
-    ("jaredpalmer/kev-4b:free", "jaredpalmer/kev-4b", "typesafe/jev-latest"),
-    "OpenRouter — universal bridge, hosts Jev/Kev",
+    # kev-* ids were delisted from OpenRouter (verified 2026-10-04);
+    # typesafe/jev-router is the only System One model served there.
+    ("typesafe/jev-router",),
+    "OpenRouter — hosts typesafe/jev-router · Jev DI 54.0 (breadth-v1)",
 )
 _TYPESAFE = ProviderGuess(
     "typesafe", "https://api.typesafe.ai",

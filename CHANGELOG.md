@@ -3,6 +3,46 @@
 All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
+## [0.3.0] — 2026-10-04
+
+### Added
+- Kev 1.0 support: kev-9b (DI 41.0) and kev-27b (DI 52.3, near-Jev) join
+  the hardware-gated catalog; pin bumped to the 1.0 tree and install now
+  uses `kev[serve]` (carries fastapi/uvicorn/typesafe-sdk, MLX on Apple).
+- Apple Silicon eligibility: kev-0.8B is validated on all Apple Silicon
+  (MLX) and becomes the recommended local option there (DI 23.3 vs Laya
+  ~0 zero-shot); kev-4B/9B offered on 32 GB+ Macs, 27B on 96–128 GB.
+- `snapdec bench`: fixed 12-item mini-suite (accuracy, Brier, latency,
+  decision mix) against the active or mock backend — measured claims now
+  come from a command, per AGENTS.md; first (mock) run committed under
+  docs/benchmarks/.
+- `snapdec models`: real hardware-gated catalog view (starred recs,
+  `--all` to peek beyond spec) replacing the stale stub.
+- Ephemeral-run guard (§5.3): `uvx snapdec init` now detects the uvx
+  cache env, persists a real `uv tool install`, and re-execs from it —
+  agent registrations can no longer point into a cache that disappears.
+- MCP Registry listing: `server.json` (name `io.github.aktonay/snapdec`,
+  test-locked to the shipped version) + `publish-registry.yml` using
+  mcp-publisher with GitHub OIDC.
+- Skill v2: `ask` tool documented, complete failure-reason list, version
+  marker, and two full examples (payload + sample output + walkthrough)
+  under `skills/snapdec/examples/`.
+
+### Fixed
+- OpenRouter hosted path was broken: kev model ids were delisted
+  upstream; the default chain is now the only live id
+  (`typesafe/jev-router`) with a regression test against dead ids.
+- "slow on CPU" no longer mislabels Kev on Apple Silicon (MLX is fast).
+- `snapdec init --backend local` with no model now defaults per backend
+  (kev → `jaredpalmer/kev-0.8b`) instead of sending laya's "english".
+- Catalog stats updated to Kev 1.0 held-out numbers (breadth-v1) on one
+  consistent scale; Jev reference updated 51.67 → 54.0.
+
+### Deferred
+- Windows managed-kev 1.0 install not re-verified on real hardware;
+  daemon version-skew compare; Windsurf/Cline skill dirs; calibration
+  refit; macOS real-hardware verification of the MLX path.
+
 ## [0.2.0] — 2026-10-03
 
 ### Added
