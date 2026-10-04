@@ -606,6 +606,20 @@ def project_facts_cmd(path: str = typer.Argument(".")) -> None:
     out.print_json(json.dumps(project_facts(path)))
 
 
+def _model_label() -> str:
+    try:
+        cfg = config.Config.load()
+        return cfg.model or cfg.backend or "default"
+    except Exception:
+        return "default"
+
+
+def _footer(env: dict[str, Any], state_chars: int) -> dict[str, Any]:
+    from ..decisions.envelope import add_status
+
+    return add_status(env, state_chars, _model_label(), __version__)
+
+
 def _tier1_cli(payload: dict[str, Any]) -> dict[str, Any]:
     if not ipc.ping() and not warm_daemon():
         return failure_envelope("no_backend", "run `snapdec daemon start` or `snapdec init`")
@@ -627,7 +641,9 @@ def _tier1_cli(payload: dict[str, Any]) -> dict[str, Any]:
                 row["score"] = a.get("score")
             row["probabilities"] = a.get("probabilities") or {}
             results.append(decision_policy.apply_decision(row))
-        return make_envelope(results, backend={"name": "daemon", "latency_ms": 0})
+        return _footer(
+            make_envelope(results, backend={"name": "daemon", "latency_ms": 0}),
+            len(str(payload.get("state", ""))))
     except ConnectionError as e:
         return failure_envelope("no_backend", str(e))
 
@@ -648,9 +664,10 @@ def _tier1_cli_many(payloads: list[dict[str, Any]]) -> dict[str, Any]:
     results = [r for env in envs for r in env.get("results", [])]
     if not results and envs:
         return envs[0]
-    return make_envelope(results, backend={"name": "daemon",
-                                           "latency_ms": round(
-                                               (time.perf_counter()-t0)*1000, 1)})
+    return _footer(make_envelope(results, backend={"name": "daemon",
+                                                   "latency_ms": round(
+                                                       (time.perf_counter()-t0)*1000, 1)}),
+                   sum(len(str(p.get("state", ""))) for p in payloads))
 
 
 @app.command()

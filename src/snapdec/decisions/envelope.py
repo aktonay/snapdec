@@ -96,3 +96,15 @@ def failure_envelope(reason: str, hint: str = "") -> dict[str, Any]:
         "hint": hint,
         "ts": time.time(),
     }
+
+
+def add_status(env: dict[str, Any], state_chars: int, model: str,
+               version: str) -> dict[str, Any]:
+    """Quiet footer on every Tier-1 answer (ADR-0009): what ran, how fast,
+    how much text stayed off the host model. Informational only."""
+    s = env.get("summary") or {}
+    env["status"] = (f"· snapdec {version} · {model} · "
+                     f"{(env.get('backend') or {}).get('latency_ms', '?')} ms · "
+                     f"{s.get('auto', 0)}/{s.get('items', 0)} auto · "
+                     f"~{state_chars // 4} tok offloaded")
+    return env

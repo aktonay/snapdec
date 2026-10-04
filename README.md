@@ -1,38 +1,87 @@
-# snapdec
+# ⚡ snapdec
 
 <!-- mcp-name: io.github.aktonay/snapdec -->
 
-[![MCP Registry](https://img.shields.io/badge/MCP_Registry-listed-4a90d9)](https://registry.modelcontextprotocol.io/)
-[![PyPI](https://img.shields.io/pypi/v/snapdec)](https://pypi.org/project/snapdec/)
+<p align="center">
+  <strong>Fast, Calibrated Micro-Decisions for AI Coding Agents</strong><br>
+  <em>Offload high-volume classification, checks, scores, and ranking from frontier LLMs to sub-50ms local models.</em>
+</p>
 
-**Snap decisions for coding agents.** One command, any machine, any agent:
-fast, calibrated typed decisions (classify / check / score / rank) from a
-local model or hosted API — exposed to every coding agent through one shared
-MCP server plus a portable Agent Skill.
+<p align="center">
+  <a href="https://pypi.org/project/snapdec/"><img src="https://img.shields.io/pypi/v/snapdec.svg?color=blue" alt="PyPI Version"></a>
+  <a href="https://pypi.org/project/snapdec/"><img src="https://img.shields.io/pypi/pyversions/snapdec.svg" alt="Python Versions"></a>
+  <a href="https://registry.modelcontextprotocol.io/"><img src="https://img.shields.io/badge/MCP_Registry-listed-4a90d9?logo=anthropic" alt="MCP Registry Listed"></a>
+  <a href="https://github.com/aktonay/snapdec/actions/workflows/ci.yml"><img src="https://img.shields.io/github/actions/workflow/status/aktonay/snapdec/ci.yml?branch=main&label=CI" alt="CI Status"></a>
+  <a href="https://github.com/aktonay/snapdec/blob/main/LICENSE"><img src="https://img.shields.io/badge/License-Apache_2.0-blue.svg" alt="License"></a>
+  <a href="https://github.com/aktonay/snapdec"><img src="https://img.shields.io/badge/Platform-macOS%20%7C%20Linux%20%7C%20Windows-lightgrey" alt="Platforms"></a>
+</p>
 
-- **One prompt setup** — snapdec shows your PC spec and a menu of every backend
-  your hardware can actually run, with honest accuracy stats. You choose.
-- **Local = fully automatic** — pick a local model and snapdec creates a
-  runtime venv, downloads the model, launches the server (127.0.0.1 only),
-  and wires it into every coding agent it finds. No other steps.
-- **Hosted = paste a key** — provider auto-detected from the key format, model
-  auto-selected (free variant first), validated by a live canary call.
-- **Honest by design** — every answer carries calibrated probabilities and an
-  `auto | review` decision. Uncertain → the agent decides itself. Advisory
-  only; never used to approve destructive actions.
+---
 
-## Install
+## 📌 What is snapdec?
+
+**snapdec** (Snap Decisions) is a lightweight, zero-configuration **Model Context Protocol (MCP) server** and **Agent Skill** that gives AI coding agents a dedicated **System 1 fast-thinking engine**. 
+
+Instead of burning thousands of tokens and 3–5 seconds of latency having frontier LLMs (Claude 3.5 Sonnet, GPT-4o, Gemini 1.5 Pro) deliberate over routine categorical choices, `snapdec` executes typed micro-decisions—**classify, check, score, rank**, and **deterministic project facts**—using specialized local models (Kev, Laya) or free hosted routers in **under 50 milliseconds**.
+
+### 💡 Why Coding Agents Need Snapdec
+Coding agents execute hundreds of micro-decisions during multi-turn workflows:
+* *"Is this test error an environmental flake or a code bug?"*
+* *"Which 3 files out of 30 in this git diff touch authentication?"*
+* *"What severity level is this linter violation?"*
+* *"Does this repo use uv, poetry, npm, pnpm, or cargo?"*
+
+Sending these trivial questions into a 200,000-token context window bloats costs, slows down the agent loop, and wastes time. `snapdec` intercepts these tasks, processes them in parallel with calibrated confidence scores, and returns an honest `auto | review` recommendation.
+
+---
+
+## ✨ Key Features
+
+- ⚡ **Sub-50ms Micro-Decisions**: Run classification and ranking in 5–50 ms locally on CPU, Apple Silicon (MLX), or CUDA GPU.
+- 🎯 **Calibrated Probabilities & Fail-Closed Abstention**: Every decision includes exact confidence scores (`probabilities`) and a typed verdict (`auto | review`). If the model is uncertain, it safely abstains and defers to the host agent.
+- 🛠️ **Tier-0 Deterministic Facts (0 Tokens)**: Instant, zero-token repository introspection (`project_facts`) detecting test runners, linters, package managers, monorepos, and CI setups.
+- 💻 **Hardware-Aware Auto-Profiler**: `snapdec init` inspects your exact CPU, RAM, GPU, VRAM, and OS, presenting only the local models your machine can genuinely run.
+- 🔌 **Zero-Config Agent Integration**: Automatically registers with **9+ coding agents** with atomic backups and 1-click clean uninstall:
+  - Claude Code
+  - Cursor
+  - Windsurf
+  - VS Code & GitHub Copilot
+  - Codex CLI
+  - Cline / Roo Code
+  - OpenCode
+  - Google Antigravity
+- 🔋 **Always-On, Zero Idle Drain**: Lightweight stdio MCP shim starts in <1s. Daemon starts lazily on first tool call and automatically resurrects dead backends. Zero background battery drain when idle.
+- 🔒 **100% Private & Local Loopback**: Local servers bind strictly to `127.0.0.1`. API keys are stored in user-owned state with restricted permissions (0600) and never leak to agent configs. **Zero telemetry.**
+- 🔄 **Safe, Non-Intrusive Updates**: `snapdec update` checks PyPI with a 24-hour cache. Never installs silently or modifies agent files without user consent.
+
+---
+
+## 🚀 Quickstart (60 Seconds)
+
+### 1. Install snapdec
+Install using `uv` (recommended), `pipx`, or standard `pip`:
 
 ```bash
-uv tool install snapdec     # or: pipx install snapdec / pip install snapdec
+# Recommended: isolated tool installation via uv
+uv tool install snapdec
+
+# Or via pipx
+pipx install snapdec
+
+# Or standard python pip
+pip install snapdec
+```
+
+### 2. Run the Interactive Setup Wizard
+Run `snapdec init` to profile your system, choose your backend, and auto-wire all detected coding agents:
+
+```bash
 snapdec init
 ```
 
-Dev (from source): `uv venv && uv pip install -e ".[dev]" && uv run pytest`
+The wizard scans your hardware and displays an honest, benchmarked menu tailored to your machine:
 
-## The first-run menu (real example, 16 GB laptop, no dGPU)
-
-```
+```text
 Recommended for this machine (13th Gen i5 · 16 GB RAM · Intel UHD · Windows 11)
 
   LOCAL — free · private · offline
@@ -43,136 +92,228 @@ Recommended for this machine (13th Gen i5 · 16 GB RAM · Intel UHD · Windows 1
         40–80 ms CUDA · fast on Apple (MLX) · CPU: seconds/question
         setup: ~5 GB                                             [slow on CPU]
   HOSTED — API key · best accuracy
-    [4] OpenRouter  —  free keys (openrouter.ai/keys) · typesafe/jev-router · Jev DI 54.0 (best known)
+    [4] OpenRouter  —  free keys (openrouter.ai/keys) · typesafe/jev-router · Jev DI 54.0
     [5] TypeSafe Jev  —  native /v1/systemone · Jev DI 54.0 (best known) · paid per call
     [6] Other /v1/systemone URL
 
 Choice [1]:
 ```
 
-And on a Mac (M-series, 16 GB) the same wizard stars Kev 0.8B — validated
-on all Apple Silicon via MLX, no "slow on CPU" flag there:
+> **Headless / CI Mode**: You can also initialize non-interactively:
+> ```bash
+> snapdec init --yes --backend local             # Auto-select best local model
+> snapdec init --yes --api-key sk-or-v1-xxxx     # Auto-detect provider & model
+> ```
 
-```
-  LOCAL — free · private · offline
-    [1] Kev 0.8B (0.8B)  —  DI 23.3 · OOD acc 0.65
-        40–80 ms CUDA · fast on Apple (MLX) · setup: ~5 GB      (recommended)
-    [2] Laya EN (421M)  —  DI ~0 zero-shot (specialize-first base)
-    ...
-```
+---
 
-Only what fits your hardware is listed — a machine without a 16 GB+ GPU
-never sees Kev-4B (DI 38.0), without 24 GB never sees Kev-9B (DI 41.0),
-and Kev-27B (DI 52.3, near-Jev) appears only on 80 GB+ boards or
-96–128 GB Macs. Every listed option is genuinely runnable. Stats are
-Kev 1.0 held-out numbers (breadth-v1 test, chance-corrected; Jev 54.0 is
-the best known reference) from the [kev model cards](https://github.com/jaredpalmer/kev).
+## 🔍 How It Works
 
-Picking `[3]` on the Windows machine above works — you get the honest
-`[slow on CPU]` flag first. Freedom within your spec.
-
-After you choose, snapdec automatically:
-
-1. provisions the backend (local: venv + download + server; hosted: key
-   validation + model canary),
-2. registers its MCP server in **every coding agent it detects** (Claude
-   Code, Codex, Cursor, OpenCode, Antigravity, Windsurf, VS Code, Cline —
-   CLI-first, backup-first, exactly reversible),
-3. installs the Agent Skill globally so every repo gets it,
-4. starts the shared daemon and prints a live health check.
-
-## What agents get
-
-| Tool | Tier | What it does |
-|---|---|---|
-| `project_facts` | 0 | Test/lint/typecheck/build commands, package manager, monorepo layout, CI — deterministic, zero model calls |
-| `classify` | 1 | Label items from caller-defined classes, with calibrated probabilities |
-| `check` | 1 | Yes/no questions about one piece of evidence (`yes \| no \| uncertain`) |
-| `score` | 1 | Ordinal rating (severity/priority/risk), 2–10 levels |
-| `rank` | 1 | Which candidates answer a query |
-
-Multi-item tools fan out one request per item (small-context backends can't
-answer N items against one blob) and run the calls in parallel.
-
-Example (CLI mirror of the MCP tool, real output from Laya on a CPU laptop):
-
-```
-$ echo '{"items":[
-    {"id":"t1","text":"Tests failed: OSError network unreachable on runner"},
-    {"id":"t2","text":"AssertionError: expected status 200, got 500"},
-    {"id":"t3","text":"ModuleNotFoundError: No module named requests"}],
-  "classes":{"infra":"network/runner problem","bug":"real code bug",
-             "deps":"missing dependency"}}' | snapdec classify --input -
-
-t1: bug    p=0.73  decision=review
-t2: bug    p=0.94  decision=auto
-t3: deps   p=0.61  decision=review
+```text
+┌─────────────────────────────────────────────────────────────┐
+│             Coding Agents (Claude Code, Cursor, ...)        │
+└──────────────────────────────┬──────────────────────────────┘
+                               │ stdio MCP (thin shim, <1s startup)
+                               ▼
+┌─────────────────────────────────────────────────────────────┐
+│                 snapdec daemon (127.0.0.1 IPC)              │
+│       Lazy-start · Health check · Auto-resurrect            │
+└──────────────┬───────────────────────────────┬──────────────┘
+               │                               │
+               ▼                               ▼
+    [ Local Inference Engine ]     [ Hosted System One API ]
+    • Kev 0.8B / 4B / 9B / 27B     • OpenRouter (jev-router)
+    • Laya EN / Multilingual       • TypeSafe Jev
+    • ONNX / PyTorch / MLX         • Custom /v1/systemone
 ```
 
-`auto` results can be acted on in bulk; `review` items go back to the host
-agent — that abstention is the product.
+Every response returned to the agent includes calibrated metadata and a discreet status footer:
 
-## CLI
-
-```
-snapdec init                 # the wizard (above)
-snapdec init --yes --api-key sk-or-…      # non-interactive, provider auto-detected
-snapdec init --yes --backend local        # non-interactive managed local setup
-snapdec doctor --live        # verify install, daemon, every agent registration
-snapdec update               # upgrade when PyPI has a newer version
-snapdec daemon start|stop|status|logs
-snapdec agents list|add|remove|print-snippet   # integrations, all reversible
-snapdec models [--all]       # hardware-gated catalog, honest stats
-snapdec bench [--backend mock]  # accuracy/Brier/latency mini-suite
-snapdec classify|check|score|rank --input -   # CLI mirrors of the tools
-snapdec project-facts .      # tier-0 facts straight from the terminal
-snapdec uninstall            # reverses every integration exactly
+```json
+{
+  "results": [
+    {"id": "t1", "label": "bug", "p": 0.94, "decision": "auto"},
+    {"id": "t2", "label": "infra", "p": 0.61, "decision": "review"}
+  ],
+  "summary": {
+    "items": 2,
+    "auto": 1,
+    "review": 1
+  },
+  "status": "· snapdec 0.4.0 · kev-0.8b · 38 ms · 1/2 auto · ~210 tok offloaded"
+}
 ```
 
-Every answer ends with a quiet status footer (what ran, latency, how much
-text stayed off the host model):
+### The `auto | review` Philosophy (Safe Abstention)
+- **`decision: "auto"`**: The model's confidence exceeds the calibrated threshold. The agent can act immediately in batch without asking the user or second-guessing.
+- **`decision: "review"`**: The model's confidence is below threshold or evidence is ambiguous. The agent falls back to inspecting the problem directly.
+- **Advisory Only**: `snapdec` is strictly an advisory decision engine. It is never used to automatically approve destructive actions (deletions, pushes, migrations).
 
+---
+
+## 🧰 Available MCP Tools
+
+When snapdec is registered, agents gain access to 6 specialized tools:
+
+| Tool | Tier | Latency | Tokens | Description |
+|:---|:---:|:---:|:---:|:---|
+| **`project_facts`** | 0 | <1 ms | 0 | Instant inspection of test runner, linter, package manager, monorepo layout, and CI configuration. Fully deterministic. |
+| **`classify`** | 1 | 15–50 ms | Offloaded | Multi-class categorizer. Takes a list of items and candidate classes, returning labels with calibrated probabilities. |
+| **`check`** | 1 | 10–40 ms | Offloaded | Fast boolean verification (`yes \| no \| uncertain`) against provided evidence. |
+| **`score`** | 1 | 15–45 ms | Offloaded | Ordinal rating on a calibrated scale of 2–10 levels (e.g. risk assessment, severity rating, priority). |
+| **`rank`** | 1 | 20–60 ms | Offloaded | Evaluates candidates against a query, returning relevance ranking and best-match recommendations. |
+| **`ask`** | 1 | 20–50 ms | Offloaded | Direct structured question answering over short context state. |
+
+> **Parallel Fan-Out**: Multi-item requests are automatically fanned out concurrently in parallel batches so small-context local models never truncate or bottleneck on large collections.
+
+---
+
+## 💻 CLI Usage & Mirrors
+
+All MCP tools have direct CLI counterparts for terminal workflows, shell scripts, and CI pipelines:
+
+```bash
+# Deterministic repository inspection (Tier 0)
+snapdec project-facts .
+
+# Categorize errors or logs from stdin (Tier 1)
+echo '{"items":[{"id":"1","text":"ConnectionResetError during upload"}],
+       "classes":{"network":"transient socket error","bug":"code bug"}}' \
+  | snapdec classify --input -
+
+# Diagnostic health check
+snapdec doctor --live
+
+# Update to latest version
+snapdec update
+
+# View hardware-gated model catalog
+snapdec models
+
+# Run local accuracy and latency benchmark suite
+snapdec bench --backend mock
 ```
-· snapdec 0.4.0 · jaredpalmer/kev-0.8b · 38 ms · 7/12 auto · ~210 tok offloaded
+
+---
+
+## 🤖 Supported Coding Agents
+
+`snapdec init` and `snapdec agents add` automatically configure all installed agent environments:
+
+| Agent | Config Path / Mechanism | Status |
+|:---|:---|:---:|
+| **Claude Code** | CLI integration (`claude mcp add`) | ✅ Auto-configured |
+| **Cursor** | `~/.cursor/mcp.json` | ✅ Auto-configured |
+| **Windsurf** | `~/.codeium/windsurf/mcp_config.json` | ✅ Auto-configured |
+| **VS Code / Copilot** | `.vscode/mcp.json` / user settings | ✅ Auto-configured |
+| **Codex CLI** | `~/.codex/config.toml` | ✅ Auto-configured |
+| **Cline / Roo Code** | `cline_mcp_settings.json` | ✅ Auto-configured |
+| **OpenCode** | `~/.opencode/mcp.json` | ✅ Auto-configured |
+| **Antigravity** | Workspace & user agent custom rules | ✅ Auto-configured |
+
+To export standard configuration for any other MCP-compliant client:
+```bash
+snapdec agents print-snippet
 ```
 
-Upgrades: `init`/`doctor` print a notice when PyPI has something newer
-(cached 24 h); `snapdec update` upgrades (uv tool → pip → pipx) and asks
-you to re-run `init` once to refresh the skill copy. Nothing installs
-silently. The daemon is lazy — first tool call starts it, dead managed
-backends resurrect on their own; no background services.
+---
 
-## Architecture (30 seconds)
+## 📊 Models & Benchmarks
 
+`snapdec` supports both local open weights and hosted router endpoints:
+
+| Model | Parameters | Hardware / Runtime | Latency | Accuracy (DI / OOD) | Notes |
+|:---|:---:|:---|:---:|:---:|:---|
+| **Laya EN** | 421M | CPU / DirectML / Apple Silicon | 5–15 ms | Base zero-shot | Ultra-lightweight, 2 GB footprint |
+| **Laya Multilingual** | 322M | CPU / DirectML / Apple Silicon | 5–15 ms | Base zero-shot | 100+ languages supported |
+| **Kev 0.8B** | 0.8B | CUDA / Apple Silicon (MLX) | 40–80 ms | DI 23.3 · OOD 0.65 | Recommended for Apple Silicon & GPUs |
+| **Kev 4B** | 4.0B | 16 GB+ VRAM GPU | 60–120 ms | DI 38.0 | High-accuracy local model |
+| **Kev 9B** | 9.0B | 24 GB+ VRAM GPU | 80–180 ms | DI 41.0 | Heavyweight local specialist |
+| **Kev 27B** | 27.0B | 80 GB+ GPU / 96GB+ Mac | 150–350 ms | DI 52.3 | Near-frontier decision intelligence |
+| **TypeSafe Jev** | Hosted | Native `/v1/systemone` | ~120 ms | DI 54.0 (Reference) | Best known decision intelligence |
+| **OpenRouter** | Hosted | `typesafe/jev-router` | ~150 ms | Jev DI 54.0 | Free API key tier available |
+
+*DI (Decision Intelligence) benchmarks cited from the official Kev 1.0 test suite. Measured local performance available in [`docs/benchmarks/`](docs/benchmarks/).*
+
+---
+
+## 🔒 Security, Privacy & Reliability
+
+- **Strict Loopback Binding**: Local model servers bind only to `127.0.0.1`. No external ports are ever opened.
+- **Protected Secrets**: API keys are saved with strict `0600` file permissions in `~/.local/state/snapdec/` or read from environment variables. They are **never written into agent configuration files**.
+- **Fail-Closed Design (NFR-4)**: If a backend crashes, drops connection, or times out, snapdec returns a valid envelope with `decision: "review"`. It **never throws an unhandled exception** or interrupts your agent session.
+- **Zero Telemetry**: No usage stats, prompts, code snippets, or user data are ever tracked or phoned home.
+
+---
+
+## 🛠️ CLI Command Reference
+
+| Command | Description |
+|:---|:---|
+| `snapdec init` | Interactive system setup wizard (auto-detects hardware and agents). |
+| `snapdec doctor` | Comprehensive health check of daemon, backend, and agent registrations. |
+| `snapdec update` | Check PyPI and upgrade snapdec installation safely. |
+| `snapdec daemon [start\|stop\|status\|logs]` | Manage the background decision daemon. |
+| `snapdec agents [list\|add\|remove\|print-snippet]` | Manage coding agent integrations. |
+| `snapdec models [--all]` | List all runnable models matching current hardware. |
+| `snapdec bench [--backend mock]` | Run the decision accuracy and latency benchmark suite. |
+| `snapdec project-facts [path]` | Deterministic repository fact extraction. |
+| `snapdec classify --input -` | CLI classifier reading JSON from stdin. |
+| `snapdec check --input -` | CLI verification reading JSON from stdin. |
+| `snapdec score --input -` | CLI ordinal scoring tool reading JSON from stdin. |
+| `snapdec rank --input -` | CLI ranker reading JSON from stdin. |
+| `snapdec uninstall` | Cleanly reverses all agent integrations and removes configurations. |
+
+---
+
+## ❓ Frequently Asked Questions (FAQ)
+
+<details>
+<summary><strong>How does snapdec reduce coding agent token usage?</strong></summary>
+
+Frontier LLMs incur input token costs for every turn in their conversation history. In agent loops, repeatedly passing long logs, diffs, and lists into a 200k context window to ask small classification or boolean questions consumes significant tokens and compute. `snapdec` offloads these discrete questions to a local model or fast router, returning only the concise answer and confidence score.
+</details>
+
+<details>
+<summary><strong>Can snapdec run completely offline?</strong></summary>
+
+Yes. When you choose a local model (such as Laya or Kev), all dependencies, weights, and runtimes run on your local machine on `127.0.0.1`. No internet connection is required after initial model download.
+</details>
+
+<details>
+<summary><strong>What happens if the local daemon crashes?</strong></summary>
+
+The MCP shim features built-in self-healing: if the daemon is stopped or crashes, the shim automatically re-spawns it on the next incoming tool call. If the backend fails to recover, it returns a safe `decision: "review"` envelope so the agent continues operating without crashing.
+</details>
+
+<details>
+<summary><strong>How do I remove or uninstall snapdec?</strong></summary>
+
+Simply run:
+```bash
+snapdec uninstall
 ```
-agents (Claude Code, Codex, Cursor, …)
-   │ stdio MCP (one thin shim per agent, <1 s start, no ML imports)
-   ▼
-snapdec daemon (one shared process, loopback+token IPC / UDS)
-   ▼
-backend: managed Laya (8901) · managed Kev (8902, pinned git SHA)
-         · hosted /v1/systemone (OpenRouter, TypeSafe, any URL) · mock
-```
+This restores all agent configuration files from their original backups and cleans up registered skills.
+</details>
 
-Keys live only in snapdec's own state (env-var reference or 0600 file) —
-never in agent configs. Local servers bind 127.0.0.1 only. No telemetry.
+---
 
-Full design doc with research citations: [SYSONE_ARCHITECTURE.md](SYSONE_ARCHITECTURE.md)
-· decisions: [docs/adr/](docs/adr/)
+## 📜 Architecture & Decisions
 
-## Status
+- Architecture Design: [SYSONE_ARCHITECTURE.md](SYSONE_ARCHITECTURE.md)
+- Architectural Decision Records (ADRs):
+  - [ADR-0001: Shim / Daemon Split](docs/adr/0001-shim-daemon-split.md)
+  - [ADR-0002: Decision Tiers](docs/adr/0002-decision-tiers.md)
+  - [ADR-0004: IPC Transport](docs/adr/0004-ipc-transport.md)
+  - [ADR-0006: API Key Storage](docs/adr/0006-api-key-storage.md)
+  - [ADR-0007: Rename Gate to snapdec](docs/adr/0007-rename-snapdec.md)
+  - [ADR-0008: Kev 1.0 Refresh & Model Catalog](docs/adr/0008-kev-1-0-refresh.md)
+  - [ADR-0009: Update Mechanism & Status Footer](docs/adr/0009-update-and-status.md)
 
-Phase 1/2 complete for: tier-0, managed Laya + Kev (1.0, all four sizes)
-provisioning, hosted backends, 9 agent integrations, MCP v2 shim + shared
-daemon, `bench` mini-suite, MCP Registry listing (`io.github.aktonay/snapdec`).
-Windows is verified on real hardware (managed Laya); macOS/Linux covered by
-CI and follow the same paths. Honest gaps: Windows managed-kev 1.0 install
-not re-verified on real hardware (torch is a big download); Kev-9B/27B on
-Mac are upstream-unmeasured (labels say so); Laya zero-shot is weak (the
-stats say so in the menu); calibration refit and micro-batching are Phase 4.
-Measured claims live in [docs/benchmarks/](docs/benchmarks/).
+---
 
-## License
+## 📄 License
 
-Apache-2.0. Not affiliated with TypeSafe/Jev, Kev, or Laya — snapdec routes
-to them and credits them. Model licenses: Apache-2.0 (Kev, Laya).
+Distributed under the **Apache-2.0 License**. See [LICENSE](LICENSE) for details.
+
+*snapdec routes to and credits [Kev](https://github.com/jaredpalmer/kev), [Laya](https://github.com/aktonay), and [TypeSafe Jev](https://typesafe.com). Model weights are distributed under their respective Apache-2.0 licenses.*

@@ -43,15 +43,10 @@ def _model_label() -> str:
 
 
 def _add_status(env: dict[str, Any], state_chars: int) -> dict[str, Any]:
-    """One quiet footer line after every Tier-1 answer: what ran, how fast,
-    how much text stayed off the host model. Rendered by the agent as part
-    of the tool result — informational, never parsed."""
-    s = env.get("summary") or {}
-    env["status"] = (f"· snapdec {__version__} · {_model_label()} · "
-                     f"{(env.get('backend') or {}).get('latency_ms', '?')} ms · "
-                     f"{s.get('auto', 0)}/{s.get('items', 0)} auto · "
-                     f"~{state_chars // 4} tok offloaded")
-    return env
+    """Shared footer (ADR-0009) — see decisions.envelope.add_status."""
+    from ..decisions.envelope import add_status
+
+    return add_status(env, state_chars, _model_label(), __version__)
 
 
 _daemon_started = False
