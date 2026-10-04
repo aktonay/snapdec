@@ -11,6 +11,7 @@ import json
 import logging
 import logging.handlers
 import sys
+from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from typing import Any
 
 from .. import config
@@ -61,6 +62,50 @@ def _handle_systemone(backend: Backend | None,
                      "decision": "review", "reason": "error"}
 
 
+UDS_MAX_PATH = 100  # macOS sun_path is 104 bytes; leave headroom
+
+
+def _bind_uds(handler: Any) -> Any:
+    """UDS server, or None when the path is too long / bind fails.
+
+    macOS temp-dir paths (CI runners, pytest tmp) can exceed the 104-byte
+    sun_path limit — in that case the caller falls back to loopback TCP,
+    same transport Windows uses (ADR-0004).
+    """
+    if len(str(ipc._uds_path())) > UDS_MAX_PATH:
+        log.info("uds path too long (> %d chars) — using loopback tcp", UDS_MAX_PATH)
+        return None
+    try:
+        import socket
+
+        class UDSHTTPServer(ThreadingHTTPServer):
+            address_family = socket.AF_UNIX
+
+            def server_bind(self) -> None:  # bind UDS path, skip host/port parsing
+                ipc._uds_path().unlink(missing_ok=True)
+                self.socket.bind(str(ipc._uds_path()))
+                self.server_name = "snapdec"
+                self.server_port = 0
+
+        return UDSHTTPServer(None, handler)  # type: ignore[arg-type]
+    except (OSError, AttributeError) as e:  # AttributeError: no AF_UNIX (win32)
+        log.info("uds bind failed (%s) — using loopback tcp", e)
+        return None
+
+
+def _bind_tcp(handler: Any, port: int | None) -> tuple[Any, int | None]:
+    """Loopback TCP with port fallback (concurrent dev instances)."""
+    for cand in [port or ipc.DEFAULT_PORT] + \
+            [(ipc.DEFAULT_PORT + i) for i in range(1, 11)]:
+        if cand != (port or ipc.DEFAULT_PORT) and not ipc.check_port_free(cand):
+            continue
+        try:
+            return ThreadingHTTPServer(("127.0.0.1", cand), handler), cand
+        except OSError:
+            continue
+    return None, None
+
+
 def run_daemon(port: int | None = None) -> int:
     """Run the daemon in the foreground. Returns exit code."""
     setup_logging()
@@ -80,16 +125,7 @@ def run_daemon(port: int | None = None) -> int:
         backend.load()
 
     token = ipc.new_token()
-    use_port = None
-    if not ipc.use_uds():
-        use_port = port or ipc.DEFAULT_PORT
     import os
-
-    ipc.write_state(pid=os.getpid(), port=use_port, token=token)
-    log.info("daemon up: backend=%s transport=%s", cfg.backend,
-             "uds" if ipc.use_uds() else f"tcp:{use_port}")
-
-    from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 
     class Handler(BaseHTTPRequestHandler):
         def _send(self, code: int, obj: dict[str, Any]) -> None:
@@ -148,44 +184,20 @@ def run_daemon(port: int | None = None) -> int:
         def log_message(self, fmt: str, *args: Any) -> None:  # quiet stderr
             log.info("%s", fmt % args)
 
-    if ipc.use_uds():
-        import socket
-
-        class UDSHTTPServer(ThreadingHTTPServer):
-            address_family = socket.AF_UNIX
-
-            def server_bind(self) -> None:  # bind UDS path, skip host/port parsing
-                ipc._uds_path().unlink(missing_ok=True)
-                self.socket.bind(str(ipc._uds_path()))
-                self.server_name = "snapdec"
-                self.server_port = 0
-
-        srv = UDSHTTPServer(None, Handler)  # type: ignore[arg-type]
+    # transport: UDS when usable, else loopback TCP with port fallback
+    srv = _bind_uds(Handler) if ipc.use_uds() else None
+    if srv is not None:
+        ipc.write_state(pid=os.getpid(), port=None, token=token)
+        log.info("daemon up: backend=%s transport=uds", cfg.backend)
     else:
-        # allow concurrent dev instances: fall forward to a free port
-        srv = None
-        for cand in [use_port or ipc.DEFAULT_PORT] + \
-                [(ipc.DEFAULT_PORT + i) for i in range(1, 11)]:
-            if cand != (use_port or ipc.DEFAULT_PORT) and not ipc.check_port_free(cand):
-                continue
-            try:
-                srv = ThreadingHTTPServer(("127.0.0.1", cand), Handler)
-                use_port = cand
-                break
-            except OSError:
-                continue
+        srv, use_port = _bind_tcp(Handler, port)
         if srv is None:
-            print("no free loopback port for daemon", file=sys.stderr)
-            ipc.clear_state()
+            print("no usable transport for daemon (uds unavailable, no free port)",
+                  file=sys.stderr)
             lock.release()
             return 1
-        if use_port != (port or ipc.DEFAULT_PORT):
-            st = ipc.read_state() or {}
-            st["port"] = use_port
-            import json as _json
-
-            _p = ipc._state_file()
-            _p.write_text(_json.dumps(st), encoding="utf-8")
+        ipc.write_state(pid=os.getpid(), port=use_port, token=token)
+        log.info("daemon up: backend=%s transport=tcp:%s", cfg.backend, use_port)
 
     try:
         srv.serve_forever()
