@@ -1,13 +1,17 @@
 """Managed local backends: auto-download + auto-setup (the 'local' choice).
 
-Supports two families, chosen freely by the user (stats shown in init):
+Supports three families, chosen freely by the user (stats shown in init):
 - Laya (`laya[serve]` from PyPI, port 8901) — tiny encoder, fast, weak
   zero-shot (specialize-first).
 - Kev (pinned git tarball — NOT on PyPI — port 8902) — best local zero-shot
   Decision Index (0.8B/4B/9B/27B since Kev 1.0); fast on CUDA and on Apple
   Silicon via MLX, seconds/question elsewhere on CPU.
+- Decision 2.0 (HF org `vllm-sr`, Apache-2.0, port 8903) — single-pass
+  decision models (Kai/Eos/Sol/Nox); the repos ship no HTTP server, so we
+  serve them with our own shim `d2serve.py` under trust_remote_code with
+  per-repo pinned revisions (ADR-0010).
 
-Both are bound to 127.0.0.1 only (laya's upstream default 0.0.0.0 is
+All are bound to 127.0.0.1 only (laya's upstream default 0.0.0.0 is
 refused), weights auto-download from Hugging Face on first preload
 (§5.4 consent handled by the wizard).
 """
@@ -29,8 +33,27 @@ from .. import config
 
 LAYA_PORT = 8901
 KEV_PORT = 8902
+DECISION2_PORT = 8903
 KEV_PIN_SHA = "fe64b1274ea7f80d4095866df90666abb03e9cf6"  # jaredpalmer/kev 1.0, 2026-10-03
 KEV_TARBALL = f"https://github.com/jaredpalmer/kev/archive/{KEV_PIN_SHA}.tar.gz"
+
+# Decision 2.0 (HF org vllm-sr, Apache-2.0): repo id → pinned revision
+# (per-repo commit SHA, resolved via the HF API 2026-10-06 — ADR-0010).
+D2_REPOS = {
+    "vllm-sr/Decision-2.0-Kai-0.6B": "cd49ea3813fd8ba0928a9a23ef6c9a0f2f0cd764",
+    "vllm-sr/Decision-2.0-Eos-0.8B": "3594047d69f476f1d01cf84c593e213fc3a4dfe0",
+    "vllm-sr/Decision-2.0-Sol-2B": "64235bef55dad29387dd16da7c90e038bf2f0972",
+    "vllm-sr/Decision-2.0-Nox-4B": "25e8f67d1b486c647222df3aac640d2d5d736bbe",
+}
+# Same shared runtime venv as laya/kev (laya[serve] already pulled
+# transformers/torch/safetensors) — pinned, idempotent install (§0.3).
+D2_INSTALL_SPECS = ("transformers==5.18.0", "torch==2.14.1", "safetensors==0.8.0")
+D2_SETUP_SIZES = {
+    "vllm-sr/Decision-2.0-Kai-0.6B": "about 2 GB (weights ~1.5 GB + torch)",
+    "vllm-sr/Decision-2.0-Eos-0.8B": "about 3 GB (weights ~2 GB + torch)",
+    "vllm-sr/Decision-2.0-Sol-2B": "about 6 GB (weights ~4.8 GB + torch)",
+    "vllm-sr/Decision-2.0-Nox-4B": "about 11 GB (weights ~9.7 GB + torch)",
+}
 
 
 def runtime_dir() -> Path:
@@ -62,6 +85,8 @@ KEV_SETUP_SIZES = {
 def setup_size_note(kind: str, model: str = "") -> str:
     if kind == "laya":
         return "about 2 GB (torch + transformers + Laya weights)"
+    if kind == "decision2":
+        return D2_SETUP_SIZES.get(model, D2_SETUP_SIZES["vllm-sr/Decision-2.0-Eos-0.8B"])
     return KEV_SETUP_SIZES.get(model, KEV_SETUP_SIZES["jaredpalmer/kev-0.8b"])
 
 
@@ -95,6 +120,20 @@ def _python_ok_for_kev(py: Path) -> bool:
     return q.stdout.strip() in ("(3, 12)", "(3, 13)")
 
 
+def _materialize_d2serve() -> Path:
+    """Copy the serve shim into SNAPDEC_HOME/runtime (idempotent).
+
+    `ensure_running` relaunches via `_launch_cmd` without reinstalling, so
+    the shim must exist outside the package directory too."""
+    dst = runtime_dir() / "d2serve.py"
+    src = Path(__file__).with_name("d2serve.py")
+    text = src.read_text(encoding="utf-8")
+    if not dst.exists() or dst.read_text(encoding="utf-8") != text:
+        runtime_dir().mkdir(parents=True, exist_ok=True)
+        dst.write_text(text, encoding="utf-8")
+    return dst
+
+
 def install_backend(py: Path, kind: str) -> str:
     if kind == "laya":
         _pip_install(py, "laya[serve]")
@@ -112,11 +151,31 @@ def install_backend(py: Path, kind: str) -> str:
         q = subprocess.run([str(py), "-c", "import kev;print(getattr(kev,'__version__','git'))"],
                            capture_output=True, text=True, timeout=60)
         return f"{q.stdout.strip() or 'git'}@{KEV_PIN_SHA[:8]}"
+    if kind == "decision2":
+        script = _materialize_d2serve()
+        # idempotent: the shared venv already satisfies these pins (laya[serve])
+        _pip_install(py, *D2_INSTALL_SPECS)
+        q = subprocess.run([str(py), "-c", "import transformers;print(transformers.__version__)"],
+                           capture_output=True, text=True, timeout=60)
+        return f"transformers {q.stdout.strip() or 'unknown'} · {script.name}"
     raise ValueError(f"unknown backend kind: {kind}")
 
 
-def _port(kind: str) -> int:
-    return LAYA_PORT if kind == "laya" else KEV_PORT
+def port_for(kind: str) -> int:
+    """Managed-server port per kind (public — CLI wizard uses it too)."""
+    ports = {"laya": LAYA_PORT, "kev": KEV_PORT, "decision2": DECISION2_PORT}
+    if kind not in ports:
+        raise ValueError(f"unknown backend kind: {kind}")
+    return ports[kind]
+
+
+def _default_model(kind: str) -> str:
+    defaults = {
+        "laya": "english",
+        "kev": "jaredpalmer/kev-0.8b",
+        "decision2": "vllm-sr/Decision-2.0-Eos-0.8B",
+    }
+    return defaults.get(kind, "english")
 
 
 def _env(kind: str, model: str) -> dict[str, str]:
@@ -140,8 +199,12 @@ def _launch_cmd(kind: str, model: str) -> list[str]:
     if kind == "laya":
         serve = _venv_bin("laya-serve")
         return [str(serve)] if serve.exists() else [str(py), "-m", "laya.serve"]
+    if kind == "decision2":
+        script = _materialize_d2serve()  # self-heal on the ensure_running path
+        return [str(py), str(script), "--repo", model,
+                "--revision", D2_REPOS[model], "--port", str(DECISION2_PORT)]
     hf_repo = model if "/" in model else f"jaredpalmer/{model}"
-    return [str(py), "-m", "kev.serve", "--run", hf_repo, "--port", str(KEV_PORT)]
+    return [str(py), "-m", "kev.serve", "--run", hf_repo, "--port", str(port_for("kev"))]
 
 
 def _pid_file(kind: str) -> Path:
@@ -161,9 +224,9 @@ def _pid(kind: str) -> int | None:
 def _healthy(kind: str, timeout: float = 1.5) -> bool:
     try:
         with httpx.Client(timeout=timeout) as c:
-            r = c.get(f"http://127.0.0.1:{_port(kind)}/health")
+            r = c.get(f"http://127.0.0.1:{port_for(kind)}/health")
             if r.status_code == 404:
-                r = c.get(f"http://127.0.0.1:{_port(kind)}/healthz")
+                r = c.get(f"http://127.0.0.1:{port_for(kind)}/healthz")
             return r.status_code == 200
     except httpx.HTTPError:
         return False
@@ -230,7 +293,7 @@ def advertised_model(kind: str) -> str:
     for path in ("/v1/models", "/models"):
         try:
             with httpx.Client(timeout=2.0) as c:
-                r = c.get(f"http://127.0.0.1:{_port(kind)}{path}")
+                r = c.get(f"http://127.0.0.1:{port_for(kind)}{path}")
             if r.status_code == 200:
                 data = r.json()
                 ids = [m.get("id") for m in data.get("data", data.get("models", []))]
@@ -246,6 +309,9 @@ def provision(kind: str, model: str, *, consent: bool = False,
               on_step: Callable[[str], None] | None = None) -> tuple[bool, str]:
     """Full auto-setup for a 'local' choice. Returns (ok, detail)."""
     step = on_step or (lambda m: None)
+    if kind == "decision2" and model not in D2_REPOS:
+        return False, (f"unknown Decision 2.0 model: {model} "
+                       f"(known: {', '.join(sorted(D2_REPOS))})")
     try:
         step("creating runtime venv")
         py = ensure_venv()
@@ -259,7 +325,7 @@ def provision(kind: str, model: str, *, consent: bool = False,
         if not wait_healthy(kind, on_wait=lambda s: step(f"still downloading/warming ({int(s)}s)")):
             return False, (f"{kind} server did not become healthy in 10 min — "
                            f"see {config.logs_dir() / (kind + '.log')}")
-        return True, f"{kind} {version} @ 127.0.0.1:{_port(kind)}"
+        return True, f"{kind} {version} @ 127.0.0.1:{port_for(kind)}"
     except (RuntimeError, OSError, subprocess.SubprocessError, ValueError) as e:
         return False, str(e)
 
@@ -273,5 +339,5 @@ def ensure_running(cfg: config.Config) -> bool:
         return True
     if not venv_python().exists():
         return False
-    launch(kind, cfg.model or "english")
+    launch(kind, cfg.model or _default_model(kind))
     return wait_healthy(kind, timeout=120.0)

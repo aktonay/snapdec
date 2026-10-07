@@ -38,7 +38,8 @@ def build_backend(cfg: config.Config) -> Backend:
         return MockBackend()
     if cfg.backend == "remote" and cfg.remote_url:
         return RemoteSystemOne(cfg.remote_url, model=cfg.model,
-                               api_key=config.get_api_key(cfg))
+                               api_key=config.get_api_key(cfg),
+                               timeout=cfg.effective_request_timeout())
     # tier0 (or anything unknown): no model. Tools that need a model
     # return fail-closed review envelopes.
     return None  # type: ignore[return-value]

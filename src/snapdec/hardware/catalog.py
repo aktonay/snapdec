@@ -5,6 +5,10 @@ PC can actually run. Stats are Kev 1.0 held-out numbers (breadth-v1 test,
 2026-10-03, from github.com/jaredpalmer/kev): Decision Index is
 chance-corrected over the benchmark suite (Jev 54.0 reference); OOD =
 out-of-domain accuracy on new sources.
+
+Decision 2.0 (vllm-sr) stats are vendor-card numbers (2026-10) on their
+own index — a DIFFERENT scale from kev's held-out DI; the two are never
+cross-compared in one number (ADR-0008 rule, ADR-0010).
 """
 
 from __future__ import annotations
@@ -83,6 +87,42 @@ CATALOG: tuple[LocalModel, ...] = (
         min_ram_gb=96, min_vram_gb=80, needs_gpu=True,
         runs_on_apple=True, min_apple_ram_gb=96,
         recommended_for=(),
+    ),
+    # Decision 2.0 (HF org vllm-sr, Apache-2.0, port 8903 — ADR-0010).
+    # Vendor-card stats, own scale (see module docstring). CPU numbers are
+    # snapdec-bench measurements on i5-13420H (docs/benchmarks/
+    # 2026-10-07-decision2-{eos,kai}.md); multi-second p50 → slow_on_cpu on
+    # every variant. Sol/Nox unbenched (Nox hidden by RAM floor here).
+    # min_ram = FP32 residency + headroom.
+    LocalModel(
+        "d2-kai", "Decision 2.0 Kai 0.6B", "0.6B",
+        "JevArena 48.6 · transfer 45.9 · DI 16.3 (vllm-sr card 2026-10)",
+        "CPU: p50 5.8 s / p95 6.6 s (bench 2026-10-07) · GPU: 4.9 ms (card)",
+        "~2 GB (weights + torch)",
+        min_ram_gb=6, min_vram_gb=0, slow_on_cpu=True,
+    ),
+    LocalModel(
+        "d2-eos", "Decision 2.0 Eos 0.8B", "0.8B",
+        "JevArena 53.9 · transfer 50.3 · DI 20.1 (vllm-sr card 2026-10 · "
+        "same-board beats Kev-0.8B 53.9 vs 43.2)",
+        "CPU: p50 7.4 s / p95 9.3 s (bench 2026-10-07) · GPU: 6.0 ms (card)",
+        "~3 GB (weights + torch)",
+        min_ram_gb=8, min_vram_gb=0, slow_on_cpu=True,
+        recommended_for=("cpu", "windows-gpu"),
+    ),
+    LocalModel(
+        "d2-sol", "Decision 2.0 Sol 2B", "2B",
+        "JevArena 52.1 · transfer 51.3 · DI 29.5 (vllm-sr card 2026-10)",
+        "CPU: not benched (2B FP32 ≫ Eos on same core) · GPU: 7.2 ms (card)",
+        "~6 GB (weights + torch)",
+        min_ram_gb=10, min_vram_gb=0, slow_on_cpu=True,
+    ),
+    LocalModel(
+        "d2-nox", "Decision 2.0 Nox 4B", "4B",
+        "JevArena 63.6 · transfer 52.3 · DI 43.8 (vllm-sr card 2026-10)",
+        "CPU: not benched · GPU: 12.9 ms (card)",
+        "~11 GB (weights + torch)",
+        min_ram_gb=20, min_vram_gb=0, slow_on_cpu=True,
     ),
 )
 

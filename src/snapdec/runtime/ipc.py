@@ -114,7 +114,7 @@ def _client() -> httpx.Client | None:
         base = url
     return httpx.Client(transport=transport, base_url=base,
                         headers={"authorization": f"Bearer {token}"},
-                        timeout=10.0)
+                        timeout=config.Config.load().effective_request_timeout())
 
 
 def ping() -> bool:

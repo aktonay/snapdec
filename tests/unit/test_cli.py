@@ -38,6 +38,36 @@ def test_models_gated(monkeypatch):
     assert "Kev 4B" in r_all.output       # visible but dimmed via --all
 
 
+def test_models_decision2_on_igpu_eos_starred_nox_hidden(monkeypatch):
+    import snapdec.cli.main as cli_mod
+
+    monkeypatch.setattr(cli_mod, "hw_detect",
+                        lambda: _rep(gpus=[GPU("Intel(R) UHD Graphics", "intel")]))
+    r = runner.invoke(app, ["models"])
+    assert r.exit_code == 0
+    assert "Decision 2.0 Eos 0.8B" in r.output
+    assert "Decision 2.0 Sol 2B" in r.output
+    assert "Decision 2.0 Nox 4B" not in r.output  # 20 GB RAM floor
+    assert "(*)" in r.output                     # eos starred on windows-gpu
+
+
+def test_wizard_mapping_covers_d2(monkeypatch):
+    from snapdec.cli.main import WIZARD_MAPPING
+
+    d2 = {k: v for k, v in WIZARD_MAPPING.items() if k.startswith("d2-")}
+    assert d2 == {
+        "d2-kai": ("decision2", "vllm-sr/Decision-2.0-Kai-0.6B"),
+        "d2-eos": ("decision2", "vllm-sr/Decision-2.0-Eos-0.8B"),
+        "d2-sol": ("decision2", "vllm-sr/Decision-2.0-Sol-2B"),
+        "d2-nox": ("decision2", "vllm-sr/Decision-2.0-Nox-4B"),
+    }
+    # every mapping target must be a pinned d2 repo (case-sensitive ids)
+    from snapdec.runtime.provision import D2_REPOS
+
+    for _k, (_kind, model) in d2.items():
+        assert model in D2_REPOS
+
+
 def test_bench_json_mock():
     r = runner.invoke(app, ["bench", "--backend", "mock", "--json"])
     assert r.exit_code == 0

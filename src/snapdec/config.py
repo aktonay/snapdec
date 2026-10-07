@@ -64,13 +64,14 @@ class Config:
     remote_url: str = ""
     model: str = ""
     laya_model: str = ""    # english | multilingual (managed local backend)
-    managed: str = ""       # laya | kev (managed local backend kind)
+    managed: str = ""       # laya | kev | decision2 (managed local backend kind)
     api_key_env: str = ""  # name of env var holding the key; no secret stored
     api_key_stored: bool = False  # True → a key exists in state/keys (0600)
     profile: str = ""
     agents: list[str] = field(default_factory=list)
     auto_approve: bool = False
     nudge: bool = False
+    request_timeout_s: float = 0.0  # >0 = explicit override; 0 = default
     created_with: str = __version__
 
     # ---------------------------------------------------------------- io
@@ -89,6 +90,14 @@ class Config:
         data: dict[str, Any] = json.loads(p.read_text(encoding="utf-8"))
         valid = {f for f in cls.__dataclass_fields__}  # ignore unknown keys
         return cls(**{k: v for k, v in data.items() if k in valid})
+
+    def effective_request_timeout(self) -> float:
+        """Per-request HTTP timeout (s): explicit override wins; local
+        backends get 60 (CPU models can take seconds/question under 8-way
+        fan-out), hosted stay at 5. Replaces silent 5/10 s hardcodes."""
+        if self.request_timeout_s > 0:
+            return self.request_timeout_s
+        return 60.0 if self.backend_label in ("local-managed", "local-server") else 5.0
 
 
 # ---------------------------------------------------------------- keys

@@ -3,6 +3,32 @@
 All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
+## [0.5.0] — 2026-10-06
+
+### Added
+- Decision 2.0 family (`vllm-sr`, Apache-2.0) as third managed local
+  backend `decision2` (port 8903): Kai-0.6B / Eos-0.8B / Sol-2B / Nox-4B,
+  each pinned to a verified commit SHA. Answer wire format matches §4.5
+  exactly, so the daemon protocol is unchanged (ADR-0010).
+- `runtime/d2serve.py`: stdlib 127.0.0.1-only serve shim (two-phase
+  trust_remote_code load: pinned snapshot, then `HF_HUB_OFFLINE=1`
+  before transformers import; fail-closed error envelopes; 2-lane
+  semaphore around `system_one`).
+- Hardware-gated catalog entries with card stats labeled by source —
+  `vllm-sr card 2026-10` index kept separate from kev's breadth-v1
+  held-out numbers (ADR-0008 rule). Eos-0.8B starred on cpu/windows-gpu
+  profiles. Lux-9B/Vega-27B omitted (cards unfetched).
+- Wizard + `init --backend local --model vllm-sr/…` inference for all
+  four variants (case-sensitive repo ids).
+
+### Fixed
+- Request-timeout bug: `RemoteSystemOne` hardcoded 5 s and `ipc._client`
+  10 s, so the 8-way CLI fan-out against a CPU-served model exceeded the
+  limit and produced silent failure envelopes. New
+  `Config.request_timeout_s` + `effective_request_timeout()`: explicit
+  override wins; 60 s local-managed/local-server; 5 s hosted. Threaded
+  through `daemon.build_backend`, `ipc._client`, `_canary` (ADR-0010 §6).
+
 ## [0.4.2] — 2026-10-04
 
 ### Added

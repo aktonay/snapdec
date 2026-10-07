@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-from snapdec.hardware.catalog import catalog_for, fits
+from snapdec.hardware.catalog import CATALOG, catalog_for, fits
 from snapdec.hardware.detect import GPU, HardwareReport
 
 
@@ -75,3 +75,42 @@ def test_fits_kev4b_requires_discrete():
                 if m.key == "kev-4b")
     assert fits(kev4, rep(gpus=[GPU("RTX 4090", "nvidia", 24)]))
     assert not fits(kev4, no_gpu)
+
+
+# ------------------------------------------------- decision2 entries (ADR-0010)
+
+def test_intel_igpu_16gb_gets_kai_eos_sol_not_nox():
+    r = rep(gpus=[GPU(name="Intel(R) UHD Graphics", vendor="intel")])
+    keys = {m.key for m in catalog_for(r)}
+    assert {"d2-kai", "d2-eos", "d2-sol"} <= keys
+    assert "d2-nox" not in keys            # 20 GB RAM floor
+
+
+def test_big_nvidia_gets_all_d2():
+    r = rep(ram_gb=64, gpus=[GPU(name="RTX 4090", vendor="nvidia", vram_gb=24)])
+    keys = {m.key for m in catalog_for(r)}
+    assert {"d2-kai", "d2-eos", "d2-sol", "d2-nox"} <= keys
+
+
+def test_d2_not_on_apple_silicon():
+    r = rep(os="macOS 15", arch="arm64", apple_silicon=True, ram_gb=96,
+            gpus=[GPU(name="Apple M3 Ultra", vendor="apple")])
+    keys = {m.key for m in catalog_for(r)}
+    assert not any(k.startswith("d2-") for k in keys)  # runs_on_apple=False
+
+
+def test_d2_slow_flags_and_star():
+    by = {m.key: m for m in CATALOG}
+    # p95 6.6 s / 9.3 s on the bench PC — every d2 variant is slow on CPU
+    # (docs/benchmarks/2026-10-07-decision2-{eos,kai}.md)
+    assert all(by[k].slow_on_cpu for k in ("d2-kai", "d2-eos", "d2-sol", "d2-nox"))
+    assert by["d2-eos"].recommended_for == ("cpu", "windows-gpu")  # eos-only star
+    assert by["d2-kai"].recommended_for == ()
+
+
+def test_d2_stats_always_cite_card_source():
+    # two stat scales must never blend into one unattributed number (ADR-0008)
+    for m in CATALOG:
+        if m.key.startswith("d2-"):
+            assert "vllm-sr card" in m.di
+            assert "breadth" not in m.di  # kev's held-out scale stays out

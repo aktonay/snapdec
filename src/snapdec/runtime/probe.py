@@ -13,7 +13,8 @@ import httpx
 
 from .ipc import DEFAULT_PORT
 
-COMMON_PORTS = [8901, 8009, 8321, 8080, 3000, 8000, 5000]  # managed, kev.serve, misc
+# snapdec-managed first (laya 8901, decision2 8903), then common System One ports.
+COMMON_PORTS = [8901, 8903, 8009, 8321, 8080, 3000, 8000, 5000]
 
 
 @dataclass

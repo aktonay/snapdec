@@ -92,13 +92,18 @@ Recommended for this machine (13th Gen i5 · 16 GB RAM · Intel UHD · Windows 1
     [1] Laya EN (421M)  —  DI ~0 zero-shot (specialize-first base)
         5–15 ms GPU/Apple · 50–450 ms CPU · setup: ~2 GB        (recommended)
     [2] Laya multilingual (322M)  —  DI ~0 zero-shot · 100+ languages
-    [3] Kev 0.8B  —  DI 23.3 · OOD acc 0.65
+    [3] Decision 2.0 Eos 0.8B  —  card: JevArena 53.9 · transfer 50.3 (vllm-sr)
+        setup: ~3 GB · best Decision 2.0 fit for this machine
+        CPU: ~7 s/question (bench)                           [slow on CPU]
+    [4] Decision 2.0 Kai 0.6B  —  card: JevArena 48.6 · smallest (~2 GB)
+        CPU: ~6 s/question (bench)                           [slow on CPU]
+    [5] Kev 0.8B  —  DI 23.3 · OOD acc 0.65
         40–80 ms CUDA · fast on Apple (MLX) · CPU: seconds/question
         setup: ~5 GB                                             [slow on CPU]
   HOSTED — API key · best accuracy
-    [4] OpenRouter  —  free keys (openrouter.ai/keys) · typesafe/jev-router · Jev DI 54.0
-    [5] TypeSafe Jev  —  native /v1/systemone · Jev DI 54.0 (best known) · paid per call
-    [6] Other /v1/systemone URL
+    [6] OpenRouter  —  free keys (openrouter.ai/keys) · typesafe/jev-router · Jev DI 54.0
+    [7] TypeSafe Jev  —  native /v1/systemone · Jev DI 54.0 (best known) · paid per call
+    [8] Other /v1/systemone URL
 
 Choice [1]:
 ```
@@ -128,7 +133,8 @@ Choice [1]:
     [ Local Inference Engine ]     [ Hosted System One API ]
     • Kev 0.8B / 4B / 9B / 27B     • OpenRouter (jev-router)
     • Laya EN / Multilingual       • TypeSafe Jev
-    • ONNX / PyTorch / MLX         • Custom /v1/systemone
+    • Decision 2.0 (vllm-sr)       • Custom /v1/systemone
+    • ONNX / PyTorch / MLX
 ```
 
 Every response returned to the agent includes calibrated metadata and a discreet status footer:
@@ -144,7 +150,7 @@ Every response returned to the agent includes calibrated metadata and a discreet
     "auto": 1,
     "review": 1
   },
-  "status": "· snapdec 0.4.2 · kev-0.8b · 38 ms · 1/2 auto · ~210 tok offloaded"
+  "status": "· snapdec 0.5.0 · kev-0.8b · 38 ms · 1/2 auto · ~210 tok offloaded"
 }
 ```
 
@@ -234,10 +240,16 @@ snapdec agents print-snippet
 | **Kev 4B** | 4.0B | 16 GB+ VRAM GPU | 60–120 ms | DI 38.0 | High-accuracy local model |
 | **Kev 9B** | 9.0B | 24 GB+ VRAM GPU | 80–180 ms | DI 41.0 | Heavyweight local specialist |
 | **Kev 27B** | 27.0B | 80 GB+ GPU / 96GB+ Mac | 150–350 ms | DI 52.3 | Near-frontier decision intelligence |
+| **Decision 2.0 Kai** | 0.6B | CPU (slow) / CUDA (x86) | ~5.8 s CPU · 4.9 ms GPU (card) | card: JevArena 48.6 (†) | Smallest of the family |
+| **Decision 2.0 Eos** | 0.8B | CPU (slow) / CUDA (x86) | ~7.4 s CPU · 6.0 ms GPU (card) | card: JevArena 53.9 (†) | Starred on CPU/Windows; beats Kev-0.8B on card |
+| **Decision 2.0 Sol** | 2B | CPU (slow) / CUDA (x86) | not benched · 7.2 ms GPU (card) | card: JevArena 52.1 (†) | Fits 16 GB RAM, marked slow on CPU |
+| **Decision 2.0 Nox** | 4B | CUDA (x86) | not benched · 12.9 ms GPU (card) | card: JevArena 63.6 (†) | Needs ≥20 GB RAM |
 | **TypeSafe Jev** | Hosted | Native `/v1/systemone` | ~120 ms | DI 54.0 (Reference) | Best known decision intelligence |
 | **OpenRouter** | Hosted | `typesafe/jev-router` | ~150 ms | Jev DI 54.0 | Free API key tier available |
 
 *DI (Decision Intelligence) benchmarks cited from the official Kev 1.0 test suite. Measured local performance available in [`docs/benchmarks/`](docs/benchmarks/).*
+
+*(†) Decision 2.0 numbers are from the vendor's model cards (`vllm-sr`, 2026-10) on their own JevArena index — a different scale from the held-out breadth-v1 numbers above, so the two are never cross-compared (ADR-0008/0010). Measured CPU latency lives in [`docs/benchmarks/`](docs/benchmarks/).*
 
 ---
 
@@ -320,4 +332,4 @@ This restores all agent configuration files from their original backups and clea
 
 Distributed under the **Apache-2.0 License**. See [LICENSE](LICENSE) for details.
 
-*snapdec routes to and credits [Kev](https://github.com/jaredpalmer/kev), [Laya](https://github.com/aktonay), and [TypeSafe Jev](https://typesafe.com). Model weights are distributed under their respective Apache-2.0 licenses.*
+*snapdec routes to and credits [Kev](https://github.com/jaredpalmer/kev), [Laya](https://github.com/aktonay), [TypeSafe Jev](https://typesafe.com), and the [vllm-sr](https://huggingface.co/vllm-sr) Decision 2.0 family. Model weights are distributed under their respective Apache-2.0 licenses.*

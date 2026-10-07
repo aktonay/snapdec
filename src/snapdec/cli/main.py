@@ -46,6 +46,21 @@ HOSTED_PRESETS = {
     "openrouter": ("https://openrouter.ai/api/v1", "", "OPENROUTER_API_KEY"),
 }
 
+# catalog key -> (managed backend kind, model id) — wizard + `init --backend
+# local` both resolve through this (ADR-0010 adds the decision2 family).
+WIZARD_MAPPING = {
+    "laya-en": ("laya", "english"),
+    "laya-multilingual": ("laya", "multilingual"),
+    "kev-0.8b": ("kev", "jaredpalmer/kev-0.8b"),
+    "kev-4b": ("kev", "jaredpalmer/kev-4b"),
+    "kev-9b": ("kev", "jaredpalmer/kev-9b"),
+    "kev-27b": ("kev", "jaredpalmer/kev-27b"),
+    "d2-kai": ("decision2", "vllm-sr/Decision-2.0-Kai-0.6B"),
+    "d2-eos": ("decision2", "vllm-sr/Decision-2.0-Eos-0.8B"),
+    "d2-sol": ("decision2", "vllm-sr/Decision-2.0-Sol-2B"),
+    "d2-nox": ("decision2", "vllm-sr/Decision-2.0-Nox-4B"),
+}
+
 
 # ================================================================ init
 
@@ -132,14 +147,7 @@ def _select_backend(opts: dict[str, Any], api_key: str | None = None) -> config.
     cfg = config.Config(profile=prof.id)
 
     models = catalog_for(rep)
-    mapping = {
-        "laya-en": ("laya", "english"),
-        "laya-multilingual": ("laya", "multilingual"),
-        "kev-0.8b": ("kev", "jaredpalmer/kev-0.8b"),
-        "kev-4b": ("kev", "jaredpalmer/kev-4b"),
-        "kev-9b": ("kev", "jaredpalmer/kev-9b"),
-        "kev-27b": ("kev", "jaredpalmer/kev-27b"),
-    }
+    mapping = WIZARD_MAPPING
 
     out.print("\n[bold]Recommended for this machine[/bold] "
               f"({rep.oneline()})\n")
@@ -194,15 +202,15 @@ def _select_backend(opts: dict[str, Any], api_key: str | None = None) -> config.
                 out.print("  falling back to Tier-0; fix the issue and re-run init")
                 cfg.backend = "tier0"
                 return cfg
-            if kind == "kev":
+            if kind in ("kev", "decision2"):
                 # adopt the wire id the server advertises (may be `kev-latest`)
-                am = provision.advertised_model("kev")
+                am = provision.advertised_model(kind)
                 if am:
                     model = am
             out.print(f"  [green]local ready[/green]: {detail}")
-        from ..runtime.provision import KEV_PORT, LAYA_PORT
+        from ..runtime.provision import port_for
 
-        port = LAYA_PORT if kind == "laya" else KEV_PORT
+        port = port_for(kind)
         cfg.backend, cfg.backend_label = "remote", "local-managed"
         cfg.remote_url = f"http://127.0.0.1:{port}"
         cfg.model, cfg.managed = model, kind
@@ -273,7 +281,8 @@ def _canary(cfg: config.Config) -> tuple[bool, str]:
 
     last_err = ""
     for model in candidates:
-        be = RemoteSystemOne(cfg.remote_url, model, key)
+        be = RemoteSystemOne(cfg.remote_url, model, key,
+                             timeout=cfg.effective_request_timeout())
         h = be.health()
         if h.status == "failed":
             return False, h.detail
@@ -334,13 +343,18 @@ def init(
         elif backend == "local":
             # non-interactive managed local setup (explicit flag = consent)
             from ..runtime import provision
-            from ..runtime.provision import KEV_PORT, LAYA_PORT
+            from ..runtime.provision import _default_model, port_for
 
-            kind = "kev" if model and "kev" in model else "laya"
-            m = model or ("jaredpalmer/kev-0.8b" if kind == "kev" else "english")
+            low = (model or "").lower()
+            kind = ("decision2" if "vllm-sr/" in low or any(
+                k in low for k in ("kai", "eos", "sol", "nox")) else
+                "kev" if "kev" in low else "laya")
+            m = model or _default_model(kind)
             if kind == "kev" and "/" not in m:
                 m = f"jaredpalmer/{m}"
-            port = LAYA_PORT if kind == "laya" else KEV_PORT
+            if kind == "decision2" and "/" not in m:
+                m = f"vllm-sr/{m}"
+            port = port_for(kind)
             if not dry_run:
                 ok, detail = provision.provision(
                     kind, m, consent=True,
@@ -348,8 +362,8 @@ def init(
                 if not ok:
                     err.print(f"[red]local setup failed:[/red] {detail}")
                     raise typer.Exit(1)
-                if kind == "kev":
-                    am = provision.advertised_model("kev")
+                if kind in ("kev", "decision2"):
+                    am = provision.advertised_model(kind)
                     if am:
                         m = am
                 out.print(f"  [green]local ready[/green]: {detail}")
