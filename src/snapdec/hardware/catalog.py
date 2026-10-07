@@ -30,8 +30,10 @@ class LocalModel:
     min_vram_gb: float       # 0 = runs on CPU (maybe slowly)
     needs_gpu: bool = False  # excluded entirely without a discrete GPU
     slow_on_cpu: bool = False
-    runs_on_apple: bool = False    # MLX path in kev[serve]/laya (Apple Silicon)
+    runs_on_apple: bool = False    # any validated Apple path (MLX or CPU)
     min_apple_ram_gb: float = 0.0  # unified-memory floor when runs_on_apple
+    mlx_on_apple: bool = False     # kev[serve]/laya MLX fast path (slow-tag
+    #                                 suppression on Apple); d2 runs CPU there
     recommended_for: tuple[str, ...] = ()  # profile ids that get the star
 
 
@@ -41,7 +43,7 @@ CATALOG: tuple[LocalModel, ...] = (
         "DI ~0 zero-shot (specialize-first base)",
         "5–15 ms GPU/Apple · 50–450 ms CPU",
         "~2 GB (torch + transformers)",
-        min_ram_gb=4, min_vram_gb=0, runs_on_apple=True, min_apple_ram_gb=8,
+        min_ram_gb=4, min_vram_gb=0, runs_on_apple=True, min_apple_ram_gb=8, mlx_on_apple=True,
         recommended_for=("cpu", "windows-gpu"),
     ),
     LocalModel(
@@ -49,7 +51,7 @@ CATALOG: tuple[LocalModel, ...] = (
         "DI ~0 zero-shot · 100+ languages",
         "5–15 ms GPU/Apple · 50–450 ms CPU",
         "~2 GB (torch + transformers)",
-        min_ram_gb=4, min_vram_gb=0, runs_on_apple=True, min_apple_ram_gb=8,
+        min_ram_gb=4, min_vram_gb=0, runs_on_apple=True, min_apple_ram_gb=8, mlx_on_apple=True,
         recommended_for=(),
     ),
     LocalModel(
@@ -58,7 +60,7 @@ CATALOG: tuple[LocalModel, ...] = (
         "40–80 ms CUDA · fast on Apple (MLX) · CPU: seconds/question",
         "~5 GB (torch + transformers + weights)",
         min_ram_gb=8, min_vram_gb=0, slow_on_cpu=True,
-        runs_on_apple=True, min_apple_ram_gb=8,
+        runs_on_apple=True, min_apple_ram_gb=8, mlx_on_apple=True,
         recommended_for=("cuda-small", "apple"),
     ),
     LocalModel(
@@ -67,7 +69,7 @@ CATALOG: tuple[LocalModel, ...] = (
         "~70–80 ms L40S/H100 · 32 GB Mac via MLX (13 GB peak)",
         "~12 GB (weights + torch)",
         min_ram_gb=16, min_vram_gb=16, needs_gpu=True,
-        runs_on_apple=True, min_apple_ram_gb=32,
+        runs_on_apple=True, min_apple_ram_gb=32, mlx_on_apple=True,
         recommended_for=("cuda-mid",),
     ),
     LocalModel(
@@ -76,7 +78,7 @@ CATALOG: tuple[LocalModel, ...] = (
         "~17 GB GPU · 32 GB+ Mac (unmeasured)",
         "~22 GB (weights + torch)",
         min_ram_gb=32, min_vram_gb=24, needs_gpu=True,
-        runs_on_apple=True, min_apple_ram_gb=32,
+        runs_on_apple=True, min_apple_ram_gb=32, mlx_on_apple=True,
         recommended_for=("server",),
     ),
     LocalModel(
@@ -85,7 +87,7 @@ CATALOG: tuple[LocalModel, ...] = (
         "80 GB GPU (B200/H200) · 96–128 GB Mac",
         "~60 GB+ (weights dominate)",
         min_ram_gb=96, min_vram_gb=80, needs_gpu=True,
-        runs_on_apple=True, min_apple_ram_gb=96,
+        runs_on_apple=True, min_apple_ram_gb=96, mlx_on_apple=True,
         recommended_for=(),
     ),
     # Decision 2.0 (HF org vllm-sr, Apache-2.0, port 8903 — ADR-0010).
@@ -94,35 +96,46 @@ CATALOG: tuple[LocalModel, ...] = (
     # 2026-10-07-decision2-{eos,kai}.md); multi-second p50 → slow_on_cpu on
     # every variant. Sol/Nox unbenched (Nox hidden by RAM floor here).
     # min_ram = FP32 residency + headroom.
+    # Apple (0.5.1): runs_on_apple=True via the plain torch CPU path (d2serve
+    # is device-agnostic; no MLX build exists) → mlx_on_apple stays False so
+    # the wizard keeps showing [slow on CPU] there. Apple floors are higher
+    # than x86: unified memory is shared with the OS + GPU. MPS deferred.
     LocalModel(
         "d2-kai", "Decision 2.0 Kai 0.6B", "0.6B",
         "JevArena 48.6 · transfer 45.9 · DI 16.3 (vllm-sr card 2026-10)",
-        "CPU: p50 5.8 s / p95 6.6 s (bench 2026-10-07) · GPU: 4.9 ms (card)",
+        "CPU: p50 5.8 s / p95 6.6 s (bench 2026-10-07) · Apple (CPU): bench "
+        "pending · GPU: 4.9 ms (card)",
         "~2 GB (weights + torch)",
         min_ram_gb=6, min_vram_gb=0, slow_on_cpu=True,
+        runs_on_apple=True, min_apple_ram_gb=8,
     ),
     LocalModel(
         "d2-eos", "Decision 2.0 Eos 0.8B", "0.8B",
         "JevArena 53.9 · transfer 50.3 · DI 20.1 (vllm-sr card 2026-10 · "
         "same-board beats Kev-0.8B 53.9 vs 43.2)",
-        "CPU: p50 7.4 s / p95 9.3 s (bench 2026-10-07) · GPU: 6.0 ms (card)",
+        "CPU: p50 7.4 s / p95 9.3 s (bench 2026-10-07) · Apple (CPU): bench "
+        "pending · GPU: 6.0 ms (card)",
         "~3 GB (weights + torch)",
         min_ram_gb=8, min_vram_gb=0, slow_on_cpu=True,
+        runs_on_apple=True, min_apple_ram_gb=8,
         recommended_for=("cpu", "windows-gpu"),
     ),
     LocalModel(
         "d2-sol", "Decision 2.0 Sol 2B", "2B",
         "JevArena 52.1 · transfer 51.3 · DI 29.5 (vllm-sr card 2026-10)",
-        "CPU: not benched (2B FP32 ≫ Eos on same core) · GPU: 7.2 ms (card)",
+        "CPU: not benched (2B FP32 ≫ Eos on same core) · Apple (CPU): bench "
+        "pending · GPU: 7.2 ms (card)",
         "~6 GB (weights + torch)",
         min_ram_gb=10, min_vram_gb=0, slow_on_cpu=True,
+        runs_on_apple=True, min_apple_ram_gb=32,
     ),
     LocalModel(
         "d2-nox", "Decision 2.0 Nox 4B", "4B",
         "JevArena 63.6 · transfer 52.3 · DI 43.8 (vllm-sr card 2026-10)",
-        "CPU: not benched · GPU: 12.9 ms (card)",
+        "CPU: not benched · Apple (CPU): bench pending · GPU: 12.9 ms (card)",
         "~11 GB (weights + torch)",
         min_ram_gb=20, min_vram_gb=0, slow_on_cpu=True,
+        runs_on_apple=True, min_apple_ram_gb=32,
     ),
 )
 

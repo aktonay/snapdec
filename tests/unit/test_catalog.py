@@ -92,11 +92,31 @@ def test_big_nvidia_gets_all_d2():
     assert {"d2-kai", "d2-eos", "d2-sol", "d2-nox"} <= keys
 
 
-def test_d2_not_on_apple_silicon():
-    r = rep(os="macOS 15", arch="arm64", apple_silicon=True, ram_gb=96,
-            gpus=[GPU(name="Apple M3 Ultra", vendor="apple")])
+def test_apple_16gb_gets_d2_kai_eos_not_sol_nox():
+    # 0.5.1: d2 selectable on Apple via the plain torch CPU path (ADR-0010 §4);
+    # unified-memory floors: kai/eos 8 GB, sol/nox 32 GB
+    r = rep(os="macOS 15", arch="arm64", apple_silicon=True, ram_gb=16,
+            gpus=[GPU(name="Apple M4", vendor="apple")])
     keys = {m.key for m in catalog_for(r)}
-    assert not any(k.startswith("d2-") for k in keys)  # runs_on_apple=False
+    assert {"d2-kai", "d2-eos"} <= keys
+    assert "d2-sol" not in keys and "d2-nox" not in keys
+
+
+def test_apple_32gb_gets_sol_nox_too():
+    r = rep(os="macOS 15", arch="arm64", apple_silicon=True, ram_gb=32,
+            gpus=[GPU(name="Apple M4 Pro", vendor="apple")])
+    keys = {m.key for m in catalog_for(r)}
+    assert {"d2-kai", "d2-eos", "d2-sol", "d2-nox"} <= keys
+
+
+def test_d2_apple_is_cpu_not_mlx_and_unstarred():
+    # kev/laya keep the MLX fast path (wizard slow-tag suppression on Apple);
+    # d2 does not — and never wins the apple star from kev-0.8b
+    by = {m.key: m for m in CATALOG}
+    assert by["kev-0.8b"].mlx_on_apple and by["laya-en"].mlx_on_apple
+    assert not any(by[k].mlx_on_apple for k in
+                   ("d2-kai", "d2-eos", "d2-sol", "d2-nox"))
+    assert "apple" not in by["d2-eos"].recommended_for
 
 
 def test_d2_slow_flags_and_star():

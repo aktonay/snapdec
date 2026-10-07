@@ -3,6 +3,18 @@
 All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
+## [0.5.1] — 2026-10-07
+
+### Changed
+- Decision 2.0 family is now selectable on Apple Silicon via the plain
+  torch CPU path (was `runs_on_apple=False` in 0.5.0). Unified-memory
+  floors: Kai/Eos 8 GB, Sol/Nox 32 GB. No MLX build exists for the
+  family, so the new `mlx_on_apple` catalog flag stays False on d2 and
+  the wizard keeps showing `[slow on CPU]` on Apple — Kev 0.8B (MLX)
+  remains the recommended fast local pick there. Apple latency strings
+  say "bench pending" until a Mac `snapdec bench` lands (ADR-0010 §4
+  amendment). MPS backend still unvalidated.
+
 ## [0.5.0] — 2026-10-06
 
 ### Added

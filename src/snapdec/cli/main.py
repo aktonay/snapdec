@@ -156,9 +156,10 @@ def _select_backend(opts: dict[str, Any], api_key: str | None = None) -> config.
     numbers: dict[int, tuple[str, str]] = {}
     for m in models:
         star = "   [bold](recommended)[/bold]" if prof.id in m.recommended_for else ""
-        # slow_on_cpu never applies on Apple Silicon — MLX is the fast path there
+        # slow_on_cpu is suppressed on Apple only where MLX is the fast path
+        # (kev/laya); d2 runs plain torch CPU on Apple and keeps the tag
         slow = "   [yellow]slow on CPU[/yellow]" if m.slow_on_cpu and \
-            not rep.apple_silicon and \
+            not (rep.apple_silicon and m.mlx_on_apple) and \
             not any(g.vendor == "nvidia" for g in rep.gpus) else ""
         out.print(f"    [{n}] {m.label} ({m.params})  —  {m.di}")
         out.print(f"        {m.latency} · setup: {m.setup}{star}{slow}")

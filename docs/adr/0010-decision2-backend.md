@@ -64,9 +64,19 @@ Apache-2.0 is OSI-approved.
    Latency strings say "CPU: bench pending" until `snapdec bench`
    commits measurements under `docs/benchmarks/` (AGENTS.md: claims come
    from bench output, not adjectives). RAM floors are FP32 residency +
-   headroom: 6/8/10/20 GB for Kai/Eos/Sol/Nox. `runs_on_apple=False`
-   (MPS path unvalidated). Lux-9B and Vega-27B cards were never fetched —
-   omitted rather than guessed.
+   headroom: 6/8/10/20 GB for Kai/Eos/Sol/Nox. Lux-9B and Vega-27B cards
+   were never fetched — omitted rather than guessed.
+   **Amended 0.5.1 (2026-10-07):** `runs_on_apple=True` for all four via
+   the plain torch CPU path — `d2serve` is device-agnostic (no device pin,
+   POSIX fingerprint no-op) and macOS arm64 satisfies the pinned torch
+   wheel, so Apple users select d2 the same way as x86. No MLX build
+   exists, so the new `mlx_on_apple` flag stays False on d2 and the wizard
+   keeps showing `[slow on CPU]` on Apple (the old suppression assumed
+   every Apple-runnable model had the MLX fast path). Apple floors are
+   higher than x86 because unified memory is shared with OS + GPU:
+   8/8/32/32 GB for Kai/Eos/Sol/Nox. Apple latency strings say
+   "bench pending" until a Mac `snapdec bench` lands under
+   `docs/benchmarks/`. MPS backend still unvalidated — deferred.
 
 5. **Eos-only star, two-star consequence accepted.**
    `recommended_for=("cpu", "windows-gpu")` on `d2-eos` only (it
@@ -119,7 +129,8 @@ Apache-2.0 is OSI-approved.
   Kai + Eos + Sol selectable, Nox hidden (min_ram 20 GB).
 - Shared-venv coupling: a future kev tarball requiring a different torch
    would collide; per-kind venvs are the escape hatch.
-- Deferred: Apple/MPS validation for the family; Lux/Vega catalog entries
+- Deferred: Apple **MPS** validation for the family (Apple **CPU** path
+  enabled in 0.5.1, see §4 amendment); Lux/Vega catalog entries
   pending card verification; batching in the shim (Phase 2 concern).
 - Bench numbers replace "pending" strings in the catalog in the same
   release that first measures them.

@@ -240,16 +240,16 @@ snapdec agents print-snippet
 | **Kev 4B** | 4.0B | 16 GB+ VRAM GPU | 60–120 ms | DI 38.0 | High-accuracy local model |
 | **Kev 9B** | 9.0B | 24 GB+ VRAM GPU | 80–180 ms | DI 41.0 | Heavyweight local specialist |
 | **Kev 27B** | 27.0B | 80 GB+ GPU / 96GB+ Mac | 150–350 ms | DI 52.3 | Near-frontier decision intelligence |
-| **Decision 2.0 Kai** | 0.6B | CPU (slow) / CUDA (x86) | ~5.8 s CPU · 4.9 ms GPU (card) | card: JevArena 48.6 (†) | Smallest of the family |
-| **Decision 2.0 Eos** | 0.8B | CPU (slow) / CUDA (x86) | ~7.4 s CPU · 6.0 ms GPU (card) | card: JevArena 53.9 (†) | Starred on CPU/Windows; beats Kev-0.8B on card |
-| **Decision 2.0 Sol** | 2B | CPU (slow) / CUDA (x86) | not benched · 7.2 ms GPU (card) | card: JevArena 52.1 (†) | Fits 16 GB RAM, marked slow on CPU |
-| **Decision 2.0 Nox** | 4B | CUDA (x86) | not benched · 12.9 ms GPU (card) | card: JevArena 63.6 (†) | Needs ≥20 GB RAM |
+| **Decision 2.0 Kai** | 0.6B | CPU (slow) / CUDA / Apple (CPU, slow) | ~5.8 s CPU · 4.9 ms GPU (card) | card: JevArena 48.6 (†) | Smallest of the family |
+| **Decision 2.0 Eos** | 0.8B | CPU (slow) / CUDA / Apple (CPU, slow) | ~7.4 s CPU · 6.0 ms GPU (card) | card: JevArena 53.9 (†) | Starred on CPU/Windows; beats Kev-0.8B on card |
+| **Decision 2.0 Sol** | 2B | CPU (slow) / CUDA / Apple (32 GB+) | not benched · 7.2 ms GPU (card) | card: JevArena 52.1 (†) | Fits 16 GB RAM, marked slow on CPU |
+| **Decision 2.0 Nox** | 4B | CPU (very slow) / CUDA / Apple (32 GB+) | not benched · 12.9 ms GPU (card) | card: JevArena 63.6 (†) | Needs ≥20 GB RAM |
 | **TypeSafe Jev** | Hosted | Native `/v1/systemone` | ~120 ms | DI 54.0 (Reference) | Best known decision intelligence |
 | **OpenRouter** | Hosted | `typesafe/jev-router` | ~150 ms | Jev DI 54.0 | Free API key tier available |
 
 *DI (Decision Intelligence) benchmarks cited from the official Kev 1.0 test suite. Measured local performance available in [`docs/benchmarks/`](docs/benchmarks/).*
 
-*(†) Decision 2.0 numbers are from the vendor's model cards (`vllm-sr`, 2026-10) on their own JevArena index — a different scale from the held-out breadth-v1 numbers above, so the two are never cross-compared (ADR-0008/0010). Measured CPU latency lives in [`docs/benchmarks/`](docs/benchmarks/).*
+*(†) Decision 2.0 numbers are from the vendor's model cards (`vllm-sr`, 2026-10) on their own JevArena index — a different scale from the held-out breadth-v1 numbers above, so the two are never cross-compared (ADR-0008/0010). Measured CPU latency lives in [`docs/benchmarks/`](docs/benchmarks/). On Apple Silicon, Decision 2.0 runs via the plain CPU path (no MLX build yet; MPS unvalidated), so Kev 0.8B (MLX) stays the recommended fast local pick there.*
 
 ---
 
@@ -325,6 +325,7 @@ This restores all agent configuration files from their original backups and clea
   - [ADR-0007: Rename Gate to snapdec](docs/adr/0007-rename-snapdec.md)
   - [ADR-0008: Kev 1.0 Refresh & Model Catalog](docs/adr/0008-kev-1-0-refresh.md)
   - [ADR-0009: Update Mechanism & Status Footer](docs/adr/0009-update-and-status.md)
+  - [ADR-0010: Decision 2.0 as Third Local Backend](docs/adr/0010-decision2-backend.md)
 
 ---
 
