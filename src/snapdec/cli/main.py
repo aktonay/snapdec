@@ -47,7 +47,8 @@ HOSTED_PRESETS = {
 }
 
 # catalog key -> (managed backend kind, model id) — wizard + `init --backend
-# local` both resolve through this (ADR-0010 adds the decision2 family).
+# local` both resolve through this (ADR-0010 adds the decision2 family,
+# ADR-0011 the imajev family).
 WIZARD_MAPPING = {
     "laya-en": ("laya", "english"),
     "laya-multilingual": ("laya", "multilingual"),
@@ -59,6 +60,9 @@ WIZARD_MAPPING = {
     "d2-eos": ("decision2", "vllm-sr/Decision-2.0-Eos-0.8B"),
     "d2-sol": ("decision2", "vllm-sr/Decision-2.0-Sol-2B"),
     "d2-nox": ("decision2", "vllm-sr/Decision-2.0-Nox-4B"),
+    "imajev-2b": ("imajev", "mohit67890/imajev-2b"),
+    "imajev-4b": ("imajev", "mohit67890/imajev-4b"),
+    "imajev-9b": ("imajev", "mohit67890/imajev-9b"),
 }
 
 
@@ -203,7 +207,7 @@ def _select_backend(opts: dict[str, Any], api_key: str | None = None) -> config.
                 out.print("  falling back to Tier-0; fix the issue and re-run init")
                 cfg.backend = "tier0"
                 return cfg
-            if kind in ("kev", "decision2"):
+            if kind in ("kev", "decision2", "imajev"):
                 # adopt the wire id the server advertises (may be `kev-latest`)
                 am = provision.advertised_model(kind)
                 if am:
@@ -292,7 +296,10 @@ def _canary(cfg: config.Config) -> tuple[bool, str]:
                 state="canary", questions={"ok": {"type": "noul",
                                                   "instructions": "ping"}}))
             cfg.model = model  # winner — free variant first, paid fallback
-            paid = "" if ":free" in model else " (paid)"
+            # "(paid)" is an OpenRouter pricing tag — never label a local
+            # managed backend (imajev-2b etc.) as paid
+            paid = "" if (":free" in model
+                          or cfg.backend_label == "local-managed") else " (paid)"
             ms = int((time.perf_counter() - t0) * 1000)
             return True, f"model {model}{paid} · {ms} ms"
         except Exception as e:  # noqa: BLE001 — try next candidate
@@ -347,10 +354,15 @@ def init(
             from ..runtime.provision import _default_model, port_for
 
             low = (model or "").lower()
-            kind = ("decision2" if "vllm-sr/" in low or any(
-                k in low for k in ("kai", "eos", "sol", "nox")) else
-                "kev" if "kev" in low else "laya")
+            kind = ("imajev" if "imajev" in low else
+                    "decision2" if "vllm-sr/" in low or any(
+                        k in low for k in ("kai", "eos", "sol", "nox")) else
+                    "kev" if "kev" in low else "laya")
             m = model or _default_model(kind)
+            if kind == "imajev":
+                m = m.lower()
+                if "/" not in m:
+                    m = f"mohit67890/{m}"
             if kind == "kev" and "/" not in m:
                 m = f"jaredpalmer/{m}"
             if kind == "decision2" and "/" not in m:
@@ -363,7 +375,7 @@ def init(
                 if not ok:
                     err.print(f"[red]local setup failed:[/red] {detail}")
                     raise typer.Exit(1)
-                if kind in ("kev", "decision2"):
+                if kind in ("kev", "decision2", "imajev"):
                     am = provision.advertised_model(kind)
                     if am:
                         m = am

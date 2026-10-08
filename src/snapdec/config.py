@@ -64,7 +64,7 @@ class Config:
     remote_url: str = ""
     model: str = ""
     laya_model: str = ""    # english | multilingual (managed local backend)
-    managed: str = ""       # laya | kev | decision2 (managed local backend kind)
+    managed: str = ""       # laya | kev | decision2 | imajev (managed local backend kind)
     api_key_env: str = ""  # name of env var holding the key; no secret stored
     api_key_stored: bool = False  # True → a key exists in state/keys (0600)
     profile: str = ""

@@ -244,12 +244,17 @@ snapdec agents print-snippet
 | **Decision 2.0 Eos** | 0.8B | CPU (slow) / CUDA / Apple (CPU, slow) | ~7.4 s CPU · 6.0 ms GPU (card) | card: JevArena 53.9 (†) | Starred on CPU/Windows; beats Kev-0.8B on card |
 | **Decision 2.0 Sol** | 2B | CPU (slow) / CUDA / Apple (32 GB+) | not benched · 7.2 ms GPU (card) | card: JevArena 52.1 (†) | Fits 16 GB RAM, marked slow on CPU |
 | **Decision 2.0 Nox** | 4B | CPU (very slow) / CUDA / Apple (32 GB+) | not benched · 12.9 ms GPU (card) | card: JevArena 63.6 (†) | Needs ≥20 GB RAM |
+| **imajev 2B** | 2.2B | CPU (slow, 12 GB+ RAM) / Apple (MLX, 8 GB+) | p50 14.8 s / p95 35.1 s CPU | board: JevBench hard 60.4 · Img JevBench 68.72 #6 (‡) | Only variant a 16 GB PC runs |
+| **imajev 4B** | 4.3B | CPU (very slow, 24 GB+) / Apple (MLX, 16 GB+) | bench pending | board: JevBench 67.37 #1 · Img 76.39 #1 · DecisionBench 79.65 #3 (‡) | Board #1 text decision model |
+| **imajev 9B** | 9.4B | CPU (48 GB+) / Apple (MLX, 32 GB+) | bench pending | board: JevBench hard 69.4 (‡) | Heavyweight Qwen3.5 specialist |
 | **TypeSafe Jev** | Hosted | Native `/v1/systemone` | ~120 ms | DI 54.0 (Reference) | Best known decision intelligence |
 | **OpenRouter** | Hosted | `typesafe/jev-router` | ~150 ms | Jev DI 54.0 | Free API key tier available |
 
 *DI (Decision Intelligence) benchmarks cited from the official Kev 1.0 test suite. Measured local performance available in [`docs/benchmarks/`](docs/benchmarks/).*
 
 *(†) Decision 2.0 numbers are from the vendor's model cards (`vllm-sr`, 2026-10) on their own JevArena index — a different scale from the held-out breadth-v1 numbers above, so the two are never cross-compared (ADR-0008/0010). Measured CPU latency lives in [`docs/benchmarks/`](docs/benchmarks/). On Apple Silicon, Decision 2.0 runs via the plain CPU path (no MLX build yet; MPS unvalidated), so Kev 0.8B (MLX) stays the recommended fast local pick there.*
+
+*(‡) imajev numbers are JevBench board standings (2026-09) and repo runs on their own indices — a third scale, never cross-compared with kev's breadth-v1 or the vllm-sr card (ADR-0008/0011). Measured CPU latency lives in [`docs/benchmarks/`](docs/benchmarks/). On Apple Silicon imajev runs a real MLX fast path (fp16), unlike Decision 2.0 there. Downloads show live byte + speed progress bars.*
 
 ---
 
@@ -333,4 +338,4 @@ This restores all agent configuration files from their original backups and clea
 
 Distributed under the **Apache-2.0 License**. See [LICENSE](LICENSE) for details.
 
-*snapdec routes to and credits [Kev](https://github.com/jaredpalmer/kev), [Laya](https://github.com/aktonay), [TypeSafe Jev](https://typesafe.com), and the [vllm-sr](https://huggingface.co/vllm-sr) Decision 2.0 family. Model weights are distributed under their respective Apache-2.0 licenses.*
+*snapdec routes to and credits [Kev](https://github.com/jaredpalmer/kev), [Laya](https://github.com/aktonay), [TypeSafe Jev](https://typesafe.com), the [vllm-sr](https://huggingface.co/vllm-sr) Decision 2.0 family, and the [imajev](https://github.com/mohit67890/imajev) family (pinned @ `ccf586d4`). Model weights are distributed under their respective Apache-2.0 licenses.*

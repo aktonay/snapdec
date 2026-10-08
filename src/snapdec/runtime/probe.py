@@ -13,8 +13,9 @@ import httpx
 
 from .ipc import DEFAULT_PORT
 
-# snapdec-managed first (laya 8901, decision2 8903), then common System One ports.
-COMMON_PORTS = [8901, 8903, 8009, 8321, 8080, 3000, 8000, 5000]
+# snapdec-managed first (laya 8901, decision2 8903, imajev 8904), then common
+# System One ports.
+COMMON_PORTS = [8901, 8903, 8904, 8009, 8321, 8080, 3000, 8000, 5000]
 
 
 @dataclass
@@ -51,6 +52,8 @@ def _probe_one(port: int, timeout: float = 0.6) -> FoundServer | None:
                         models.append(m)
                     elif isinstance(m, dict) and m.get("id"):
                         models.append(str(m["id"]))
+                if not models and data.get("model"):  # imajev: flat body
+                    models = [str(data["model"])]
             return FoundServer(port=port, models=models, server=server)
     except (httpx.HTTPError, ValueError):
         return None

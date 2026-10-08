@@ -60,3 +60,37 @@ def test_probe_empty_port_returns_none():
     srv.shutdown()
     srv.server_close()
     assert _probe_one(port, timeout=0.3) is None
+
+
+class _FlatStub(BaseHTTPRequestHandler):
+    """imajev playground server shape: flat /v1/models body (ADR-0011)."""
+
+    def do_GET(self):  # noqa: N802
+        if self.path == "/v1/models":
+            body = json.dumps({"model": "mohit67890/imajev-2b",
+                               "adapter": "imajev-2b", "backend": "torch",
+                               "loaded": True}).encode()
+            self.send_response(200)
+            self.send_header("content-type", "application/json")
+            self.send_header("content-length", str(len(body)))
+            self.end_headers()
+            self.wfile.write(body)
+        else:
+            self.send_response(404)
+            self.end_headers()
+
+    def log_message(self, *a):  # quiet
+        pass
+
+
+def test_probe_one_parses_imajev_flat_models_body():
+    srv = ThreadingHTTPServer(("127.0.0.1", 0), _FlatStub)
+    threading.Thread(target=srv.serve_forever, daemon=True).start()
+    try:
+        found = _probe_one(srv.server_address[1], timeout=2.0)
+        assert found is not None
+        assert found.models == ["mohit67890/imajev-2b"]
+        assert found.model == "mohit67890/imajev-2b"
+    finally:
+        srv.shutdown()
+        srv.server_close()

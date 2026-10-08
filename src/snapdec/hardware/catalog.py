@@ -9,6 +9,10 @@ out-of-domain accuracy on new sources.
 Decision 2.0 (vllm-sr) stats are vendor-card numbers (2026-10) on their
 own index — a DIFFERENT scale from kev's held-out DI; the two are never
 cross-compared in one number (ADR-0008 rule, ADR-0010).
+
+imajev (mohit67890) stats are JevBench board numbers (2026-09) on yet
+another scale — source-cited, never blended with the other two
+(ADR-0008 rule, ADR-0011).
 """
 
 from __future__ import annotations
@@ -136,6 +140,41 @@ CATALOG: tuple[LocalModel, ...] = (
         "~11 GB (weights + torch)",
         min_ram_gb=20, min_vram_gb=0, slow_on_cpu=True,
         runs_on_apple=True, min_apple_ram_gb=32,
+    ),
+    # imajev (GitHub mohit67890/imajev, Apache-2.0, port 8904 — ADR-0011).
+    # JevBench board stats, own scale (see module docstring). Served by their
+    # pinned playground server, CPU dtype is always FP32 → min_ram floors
+    # 12/24/48 = weights + calibration + headroom. Apple gets the REAL MLX
+    # path (--backend mlx, fp16) → mlx_on_apple=True, floors 8/16/32. Unbenched
+    # → no star anywhere (kev-0.8b/d2-eos keep theirs). 2b is the only variant
+    # this dev PC (15.7 GB) can run.
+    LocalModel(
+        "imajev-2b", "imajev 2B (Qwen3.5)", "2.2B",
+        "JevBench hard split 60.4 · Image JevBench v0.1.3 68.72 #6 (board 2026-09)",
+        "CPU: p50 14.8 s / p95 35.1 s (bench 2026-10-08) · Apple (MLX): bench pending",
+        "~5 GB (Qwen3.5-2B base + adapter + torch)",
+        min_ram_gb=12, min_vram_gb=0, slow_on_cpu=True,
+        runs_on_apple=True, min_apple_ram_gb=8, mlx_on_apple=True,
+        recommended_for=(),
+    ),
+    LocalModel(
+        "imajev-4b", "imajev 4B (Qwen3.5)", "4.3B",
+        "JevBench v1.4.2.2 67.37 #1 · Image JevBench v0.1.3 76.39 #1 · "
+        "DecisionBench 79.65 #3 (board 2026-09)",
+        "CPU: bench pending · Apple (MLX): bench pending",
+        "~10 GB (weights + torch)",
+        min_ram_gb=24, min_vram_gb=0, slow_on_cpu=True,
+        runs_on_apple=True, min_apple_ram_gb=16, mlx_on_apple=True,
+        recommended_for=(),
+    ),
+    LocalModel(
+        "imajev-9b", "imajev 9B (Qwen3.5)", "9.4B",
+        "JevBench hard split 69.4 (board 2026-09)",
+        "CPU: bench pending · Apple (MLX): bench pending",
+        "~19 GB (weights + torch)",
+        min_ram_gb=48, min_vram_gb=0, slow_on_cpu=True,
+        runs_on_apple=True, min_apple_ram_gb=32, mlx_on_apple=True,
+        recommended_for=(),
     ),
 )
 

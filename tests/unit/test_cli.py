@@ -87,3 +87,34 @@ def test_bench_deterministic_mock():
     for k in ("classify_accuracy", "check_accuracy", "check_brier", "score_exact",
               "decision_mix", "items"):
         assert a[k] == b[k], k
+
+
+def test_models_imajev_on_igpu_2b_shown_bigger_hidden(monkeypatch):
+    import snapdec.cli.main as cli_mod
+
+    monkeypatch.setattr(cli_mod, "hw_detect",
+                        lambda: _rep(gpus=[GPU("Intel(R) UHD Graphics", "intel")]))
+    r = runner.invoke(app, ["models"])
+    assert r.exit_code == 0
+    assert "imajev 2B (Qwen3.5)" in r.output
+    assert "imajev 4B (Qwen3.5)" not in r.output  # 24 GB RAM floor
+    assert "imajev 9B (Qwen3.5)" not in r.output
+    assert "(*)" in r.output                      # d2-eos keeps the cpu/windows star
+    r_all = runner.invoke(app, ["models", "--all"])
+    assert "imajev 4B (Qwen3.5)" in r_all.output  # visible but dimmed via --all
+
+
+def test_wizard_mapping_covers_imajev():
+    from snapdec.cli.main import WIZARD_MAPPING
+
+    im = {k: v for k, v in WIZARD_MAPPING.items() if k.startswith("imajev-")}
+    assert im == {
+        "imajev-2b": ("imajev", "mohit67890/imajev-2b"),
+        "imajev-4b": ("imajev", "mohit67890/imajev-4b"),
+        "imajev-9b": ("imajev", "mohit67890/imajev-9b"),
+    }
+    # every mapping target must be a pinned imajev adapter repo
+    from snapdec.runtime.provision import IMAJEV_REPOS
+
+    for _k, (_kind, model) in im.items():
+        assert model in IMAJEV_REPOS

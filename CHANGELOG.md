@@ -3,6 +3,51 @@
 All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
+## [0.6.0] — 2026-10-08
+
+### Added
+- imajev family (`mohit67890/imajev`, Apache-2.0) as fourth managed local
+  backend `imajev` (port 8904): imajev-2B / 4B / 9B on Qwen3.5 bases, each
+  pinned to a verified commit SHA. snapdec runs upstream's own pinned
+  server (`scripts/playground/server.py`, `--rotations 1`) — no shim
+  authored (ADR-0011, contrast ADR-0010). Flat `/v1/models` body and the
+  no-`/health` wire are handled snapdec-side; 422/500 errors already
+  convert to fail-closed review envelopes (NFR-4 unchanged).
+- Dual download per model: pinned base snapshot via their
+  `download_model.py` (absolute `HF_HOME` under SNAPDEC_HOME) plus pinned
+  adapter snapshot into a stable path so daemon restarts never re-download.
+- **Live download progress** (owner request 2026-10-07): model-base,
+  adapter, and pip installs run with stderr inherited — tqdm byte and
+  speed bars render live during multi-GB downloads instead of a silent
+  captured console that looks hung on slow links.
+- Hardware-gated catalog entries citing the JevBench board (2026-09),
+  kept as a third stat scale never blended with kev breadth-v1 or the
+  vllm-sr card (ADR-0008 rule). RAM floors 12/24/48 GB x86 (FP32 CPU),
+  8/16/32 GB Apple (real MLX fast path via `--backend mlx`); no star —
+  unbenched in snapdec until a bench doc lands.
+- Wizard + `init --backend local --model imajev-…` inference for all
+  three variants (`mohit67890/` org fixup, lowercase).
+
+### Fixed
+- Placeholder-bundle trap: their repo tarball ships
+  `artifacts/model.json` as a placeholder that a plain `.exists()` gate
+  accepted, skipping the ~4.6 GB base download and crashing the server
+  at load (`ValueError: Local model snapshot is missing`). Bundles are
+  now json-parsed: empty/relative-placeholder/missing-snapshot paths are
+  rejected before launch, and the base download is verified again after
+  it runs (ADR-0011 §3).
+- Resurrect window: `ensure_running` waited a flat 120 s, so a daemon
+  restart declared the imajev FP32 cold load (minutes) dead while it was
+  still loading. Now kind-aware — 600 s for kev/decision2/imajev, 120 s
+  for laya — with a 10 s heartbeat on stderr and a log-path note on
+  failure (ADR-0011).
+- Pid-reuse guard on Windows: a stale daemon state file could point at
+  an unrelated process that inherited the PID; `stop_daemon` now
+  terminates only a pid whose process name looks like python/snapdec
+  (`lifecycle._pid_alive` name check, ADR-0011).
+- `(paid)` label wrongly appended to local-managed models in init
+  output — now only shown for hosted routers.
+
 ## [0.5.1] — 2026-10-07
 
 ### Changed

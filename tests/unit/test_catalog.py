@@ -134,3 +134,53 @@ def test_d2_stats_always_cite_card_source():
         if m.key.startswith("d2-"):
             assert "vllm-sr card" in m.di
             assert "breadth" not in m.di  # kev's held-out scale stays out
+
+
+# ------------------------------------------------------------- imajev (ADR-0011)
+
+def test_intel_igpu_16gb_gets_imajev_2b_only():
+    # torch fp32 CPU path: RAM floors 12/24/48 GB (ADR-0011)
+    r = rep(gpus=[GPU(name="Intel(R) UHD Graphics", vendor="intel")])
+    keys = {m.key for m in catalog_for(r)}
+    assert "imajev-2b" in keys
+    assert "imajev-4b" not in keys and "imajev-9b" not in keys
+
+
+def test_big_nvidia_gets_all_imajev():
+    r = rep(ram_gb=64, gpus=[GPU(name="RTX 4090", vendor="nvidia", vram_gb=24)])
+    keys = {m.key for m in catalog_for(r)}
+    assert {"imajev-2b", "imajev-4b", "imajev-9b"} <= keys
+
+
+def test_apple_16gb_gets_imajev_2b_4b_not_9b():
+    # real MLX fast path on Apple: unified-memory floors 8/16/32 GB
+    r = rep(os="macOS 15", arch="arm64", apple_silicon=True, ram_gb=16,
+            gpus=[GPU(name="Apple M4", vendor="apple")])
+    keys = {m.key for m in catalog_for(r)}
+    assert {"imajev-2b", "imajev-4b"} <= keys
+    assert "imajev-9b" not in keys
+
+
+def test_apple_32gb_gets_imajev_9b_too():
+    r = rep(os="macOS 15", arch="arm64", apple_silicon=True, ram_gb=32,
+            gpus=[GPU(name="Apple M4 Pro", vendor="apple")])
+    keys = {m.key for m in catalog_for(r)}
+    assert {"imajev-2b", "imajev-4b", "imajev-9b"} <= keys
+
+
+def test_imajev_apple_mlx_unstarred_slow_on_cpu():
+    by = {m.key: m for m in CATALOG}
+    for k in ("imajev-2b", "imajev-4b", "imajev-9b"):
+        m = by[k]
+        assert m.mlx_on_apple and m.runs_on_apple and m.slow_on_cpu
+        assert m.recommended_for == ()  # unbenched → no star (ADR-0011)
+        assert m.min_vram_gb == 0  # fp32 CPU path needs no discrete GPU
+
+
+def test_imajev_stats_always_cite_board_source():
+    # third stat scale: JevBench board numbers never blend with kev breadth-v1
+    # or the vllm-sr card (ADR-0008 rule, ADR-0011)
+    for m in CATALOG:
+        if m.key.startswith("imajev-"):
+            assert "board 2026-09" in m.di
+            assert "vllm-sr card" not in m.di and "breadth" not in m.di

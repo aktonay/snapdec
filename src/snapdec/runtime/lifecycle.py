@@ -89,7 +89,9 @@ def stop_daemon() -> bool:
             ipc.clear_state()
             return True
         time.sleep(0.2)
-    if st and st.get("pid"):
+    if st and st.get("pid") and _pid_alive(st.get("pid")):
+        # name-checked (see _pid_alive): never terminate a PID that Windows
+        # has handed to an unrelated process (ADR-0011)
         try:
             import psutil
 
@@ -109,7 +111,13 @@ def _pid_alive(pid: Any) -> bool:
         import psutil
 
         p = psutil.Process(int(pid))
-        return p.is_running() and p.status() != psutil.STATUS_ZOMBIE
+        if not p.is_running() or p.status() == psutil.STATUS_ZOMBIE:
+            return False
+        # Windows reuses PIDs aggressively: a stale state file can point at
+        # an unrelated process. The daemon runs as a python process — a pid
+        # held by anything else is not ours (ADR-0011).
+        name = p.name().lower()
+        return name.startswith("python") or "snapdec" in name
     except (psutil.Error, ValueError):
         return False
 
